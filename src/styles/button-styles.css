@@ -1,0 +1,14 @@
+.places-button {
+  cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  height: auto;
+  border-radius: var(--button-radius, var(--radius-s));
+}
+
+@media (max-width: 768px) {
+  .places-button {
+    width: 100%;
+  }
+}

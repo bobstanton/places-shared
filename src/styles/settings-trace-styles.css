@@ -1,0 +1,87 @@
+.places-settings-trace {
+  margin: 0;
+  padding: 0;
+  background-color: var(--background-primary);
+}
+
+.places-settings-trace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-1);
+}
+
+.places-settings-trace-title {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-small);
+}
+
+.places-settings-trace-header .places-floating-buttons {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.places-settings-trace-scroll {
+  overflow-x: auto;
+}
+
+.places-settings-trace table {
+  border-collapse: collapse;
+  font-size: var(--font-ui-smaller);
+  width: 100%;
+}
+
+.places-settings-trace :is(th, td) {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 2px var(--size-4-1);
+  text-align: left;
+  white-space: nowrap;
+  max-width: 22em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.places-settings-trace thead th {
+  background-color: var(--table-header-background);
+}
+
+.places-settings-trace-key {
+  font-family: var(--font-monospace);
+}
+
+.places-settings-trace-winner {
+  background-color: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.places-settings-trace-derived {
+  color: var(--text-warning);
+}
+
+.places-param-debug .places-settings-trace-scroll + .places-settings-trace-scroll {
+  margin-top: var(--size-4-2);
+}
+
+.places-param-debug-text code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--font-ui-smaller);
+}
+
+.places-param-debug-summary {
+  margin-top: var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.places-param-debug-fields {
+  margin-top: var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  word-break: break-word;
+}
+
+.places-param-debug-fields .places-param-debug-label {
+  font-weight: 600;
+}

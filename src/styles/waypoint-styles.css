@@ -1,0 +1,92 @@
+.places-waypoint-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.places-waypoint-marker:hover {
+  transform: scale(1.1);
+}
+
+.places-waypoint-marker-image {
+  width: var(--size-4-6);
+  height: var(--size-4-6);
+  background: transparent;
+  border: none;
+}
+
+.places-waypoint-marker-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.places-waypoint-marker-emoji {
+  font-size: var(--font-ui-medium);
+  width: var(--size-4-6);
+  height: var(--size-4-6);
+  background: transparent;
+  border: none;
+}
+
+.places-waypoint-marker-text {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  padding: var(--size-2-1) var(--size-4-1);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: var(--text-normal);
+  white-space: nowrap;
+}
+
+.places-waypoint-popup {
+  min-width: 150px;
+}
+
+.places-waypoint-popup-name {
+  font-weight: var(--font-bold);
+  margin-bottom: var(--size-2-1);
+  font-size: var(--font-ui-medium);
+}
+
+.places-waypoint-popup-description {
+  font-size: var(--font-ui-small);
+  margin-bottom: var(--size-2-1);
+  color: var(--text-muted);
+}
+
+.places-waypoint-popup-type,
+.places-waypoint-popup-elevation {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.places-waypoint-popup-comment {
+  font-size: var(--font-ui-smaller);
+  font-style: italic;
+  color: var(--text-muted);
+  margin-top: var(--size-2-1);
+}
+
+.places-waypoint-popup-link {
+  font-size: var(--font-ui-smaller);
+  margin-top: var(--size-2-1);
+  display: block;
+}
+
+.places-waypoint-popup-image {
+  max-width: 100%;
+  height: auto;
+  margin-top: var(--size-2-2);
+  display: block;
+}
+
+.places-waypoint-popup-description p {
+  margin: var(--size-2-1) 0 0;
+}

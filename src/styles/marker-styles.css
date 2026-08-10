@@ -1,0 +1,179 @@
+:root {
+  --places-marker-size: 36px;
+  --places-icon-font-size: 20px;
+  --places-label-offset: 8px;
+  --places-label-font-size: 13px;
+  --places-label-max-width: 160px;
+  --places-label-color: #d73027;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --places-marker-size: 38px;
+    --places-icon-font-size: 22px;
+    --places-label-font-size: 13px;
+    --places-label-max-width: 170px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --places-marker-size: 40px;
+    --places-icon-font-size: 24px;
+    --places-label-font-size: 14px;
+    --places-label-max-width: 185px;
+  }
+}
+
+.places-marker {
+  background: transparent;
+  border: none;
+  width: var(--places-marker-size);
+  height: var(--places-marker-size);
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.places-marker-icon {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--places-marker-size);
+  height: var(--places-marker-size);
+  font-size: var(--places-icon-font-size);
+  line-height: 1;
+  text-shadow: 1px 1px 2px var(--shadow-color, rgba(0, 0, 0, 0.3));
+  transition: opacity 0.2s ease;
+  transform-origin: center;
+}
+
+.places-marker-icon.places-marker-opacity-custom {
+  opacity: var(--places-marker-opacity);
+}
+
+.places-marker.places-marker-z-index-custom {
+  z-index: var(--places-marker-z-index);
+}
+
+.places-zoom-lt-1 .places-min-zoom-1,
+.places-zoom-lt-2 .places-min-zoom-2,
+.places-zoom-lt-3 .places-min-zoom-3,
+.places-zoom-lt-4 .places-min-zoom-4,
+.places-zoom-lt-5 .places-min-zoom-5,
+.places-zoom-lt-6 .places-min-zoom-6,
+.places-zoom-lt-7 .places-min-zoom-7,
+.places-zoom-lt-8 .places-min-zoom-8,
+.places-zoom-lt-9 .places-min-zoom-9,
+.places-zoom-lt-10 .places-min-zoom-10,
+.places-zoom-lt-11 .places-min-zoom-11,
+.places-zoom-lt-12 .places-min-zoom-12,
+.places-zoom-lt-13 .places-min-zoom-13,
+.places-zoom-lt-14 .places-min-zoom-14,
+.places-zoom-lt-15 .places-min-zoom-15,
+.places-zoom-lt-16 .places-min-zoom-16,
+.places-zoom-lt-17 .places-min-zoom-17,
+.places-zoom-lt-18 .places-min-zoom-18,
+.places-zoom-lt-19 .places-min-zoom-19,
+.places-zoom-lt-20 .places-min-zoom-20,
+.places-zoom-lt-21 .places-min-zoom-21,
+.places-zoom-lt-22 .places-min-zoom-22,
+.places-zoom-lt-23 .places-min-zoom-23,
+.places-zoom-lt-24 .places-min-zoom-24,
+.places-zoom-gt-0 .places-max-zoom-0,
+.places-zoom-gt-1 .places-max-zoom-1,
+.places-zoom-gt-2 .places-max-zoom-2,
+.places-zoom-gt-3 .places-max-zoom-3,
+.places-zoom-gt-4 .places-max-zoom-4,
+.places-zoom-gt-5 .places-max-zoom-5,
+.places-zoom-gt-6 .places-max-zoom-6,
+.places-zoom-gt-7 .places-max-zoom-7,
+.places-zoom-gt-8 .places-max-zoom-8,
+.places-zoom-gt-9 .places-max-zoom-9,
+.places-zoom-gt-10 .places-max-zoom-10,
+.places-zoom-gt-11 .places-max-zoom-11,
+.places-zoom-gt-12 .places-max-zoom-12,
+.places-zoom-gt-13 .places-max-zoom-13,
+.places-zoom-gt-14 .places-max-zoom-14,
+.places-zoom-gt-15 .places-max-zoom-15,
+.places-zoom-gt-16 .places-max-zoom-16,
+.places-zoom-gt-17 .places-max-zoom-17,
+.places-zoom-gt-18 .places-max-zoom-18,
+.places-zoom-gt-19 .places-max-zoom-19,
+.places-zoom-gt-20 .places-max-zoom-20,
+.places-zoom-gt-21 .places-max-zoom-21,
+.places-zoom-gt-22 .places-max-zoom-22,
+.places-zoom-gt-23 .places-max-zoom-23 {
+  display: none;
+}
+
+.mapboxgl-map .mapboxgl-marker.places-marker-z-index-custom,
+.maplibregl-map .maplibregl-marker.places-marker-z-index-custom {
+  z-index: var(--places-marker-z-index);
+}
+
+.places-marker-label {
+  position: absolute;
+  left: calc(var(--places-marker-size) + var(--places-label-offset));
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--places-label-color);
+  font-size: var(--places-label-font-size);
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.95),
+               0 0 1px rgba(255, 255, 255, 0.8);
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: var(--places-label-max-width);
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.places-marker-label-user-style {
+  text-shadow: none;
+}
+
+.places-marker-label-hidden {
+  display: none;
+}
+
+.places-focus-mode .places-marker-icon,
+.places-focus-mode .places-marker-label {
+  opacity: 0.2;
+}
+
+.places-focus-mode .places-marker.places-marker-focused .places-marker-icon,
+.places-focus-mode .places-marker.places-marker-focused .places-marker-label {
+  opacity: 1;
+}
+
+.places-focus-mode .places-marker.places-marker-search-result .places-marker-icon,
+.places-focus-mode .places-marker.places-marker-search-result .places-marker-label {
+  opacity: 1;
+}
+
+.places-focus-mode .leaflet-marker-icon.places-marker-focused {
+  z-index: var(--places-z-marker-focus, 10000);
+}
+.places-focus-mode .places-marker.places-marker-focused {
+  z-index: var(--places-z-marker-focus, 10000);
+}
+.places-focus-mode .leaflet-marker-icon.places-marker-search-result {
+  z-index: var(--places-z-marker-focus, 10000);
+}
+.places-focus-mode .places-marker.places-marker-search-result {
+  z-index: var(--places-z-marker-focus, 10000);
+}

@@ -1,0 +1,127 @@
+@keyframes places-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.places-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--background-modifier-border);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  animation: places-spin 1s linear infinite;
+}
+
+.places-loading-spinner-sm {
+  width: var(--icon-s);
+  height: var(--icon-s);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-top-color: var(--text-accent);
+  border-radius: 50%;
+  animation: places-spin 1s linear infinite;
+  margin-right: var(--size-4-2);
+}
+
+.places-loading-text {
+  color: var(--text-muted);
+  font-size: var(--font-ui-medium);
+  text-align: center;
+}
+
+.places-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--size-4-8);
+  color: var(--text-muted);
+}
+
+.places-floating-buttons {
+  position: absolute;
+  top: var(--size-2-2);
+  inset-inline-end: calc(var(--size-2-2) + 30px + var(--size-2-1)); /* Offset from edit button (30px) with gap */
+  display: flex;
+  gap: var(--size-2-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: var(--places-z-map-controls, 20000);
+}
+
+.places-floating-buttons.places-floating-buttons-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.places-floating-buttons .places-floating-button {
+  padding: var(--size-2-2) var(--size-2-3);
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  color: var(--text-muted);
+  border-radius: var(--radius-s);
+  cursor: var(--cursor);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transition: background-color 0.25s ease;
+  box-sizing: border-box;
+}
+
+.places-floating-buttons .places-floating-button svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.places-floating-buttons .places-floating-button:hover {
+  background: var(--background-modifier-hover);
+}
+
+.places-floating-button.is-loading {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.places-floating-button.is-loading svg {
+  animation: places-spin 1s linear infinite;
+}
+
+.places-refresh-progress-host {
+  position: relative;
+}
+
+.places-refresh-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  background: var(--background-modifier-border);
+  z-index: var(--places-z-map-controls, 20000);
+}
+
+.places-refresh-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--interactive-accent);
+  animation: places-refresh-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes places-refresh-progress-slide {
+  from {
+    inset-inline-start: -40%;
+  }
+  to {
+    inset-inline-start: 100%;
+  }
+}
