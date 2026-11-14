@@ -9,6 +9,10 @@ export interface TrackPoint {
   time?: Date;
   speedKph?: KilometersPerHour;
   paceMinPerKm?: MinutesPerKilometer;
+  heartRateBpm?: number;
+  cadenceRpm?: number;
+  powerWatts?: number;
+  temperatureCelsius?: number;
 }
 
 export interface TrackMetrics {
@@ -34,6 +38,6 @@ export interface TrackData {
   metadata: {
     name?: string;
     description?: string;
-    source: 'gpx' | 'polyline' | 'manual';
+    source: 'gpx' | 'fit' | 'polyline' | 'manual';
   };
 }

@@ -1,44 +1,49 @@
+import * as _placesDom from '../utils';
 import { SettingsTrace, settingsTraceToMarkdown } from '../settings/SettingsTrace';
-import { copyToClipboard } from '../utils/FileUtils';
+import { copyToClipboard } from '../utils/Clipboard';
 import { createFloatingCopyButton } from './FloatingCopyButton';
 
-// Renders a settings-resolution trace (the `debug: settings` block mode).
-// Styles live in places-shared/settings-trace-styles.css, imported by each
-// plugin bundle that uses this view.
 export function renderSettingsTraceView(container: HTMLElement, trace: SettingsTrace, title: string): void {
-  const section = container.createDiv({ cls: 'places-settings-trace' });
+  const section = _placesDom.createDiv(container, { cls: 'places-settings-trace' });
 
-  const header = section.createDiv({ cls: 'places-settings-trace-header' });
-  header.createSpan({ cls: 'places-settings-trace-title', text: title });
+  const header = _placesDom.createDiv(section, { cls: 'places-settings-trace-header' });
 
-  const buttonContainer = header.createDiv('places-floating-buttons');
+  _placesDom.createSpan(header, { cls: 'places-settings-trace-title', text: title });
+
+  const buttonContainer = _placesDom.createDiv(header, 'places-floating-buttons');
+
   createFloatingCopyButton({
     buttonContainer,
     onCopy: () => copyToClipboard(settingsTraceToMarkdown(trace)),
   });
 
-  const scroll = section.createDiv({ cls: 'places-settings-trace-scroll' });
-  const table = scroll.createEl('table');
+  const scroll = _placesDom.createDiv(section, { cls: 'places-settings-trace-scroll' });
+  const table = _placesDom.createElement(scroll, 'table');
 
-  const head = table.createEl('thead').createEl('tr');
+  const head = _placesDom.createElement(_placesDom.createElement(table, 'thead'), 'tr');
+
   for (const column of ['Setting', ...trace.layers, 'Resolved', 'Source']) {
-    head.createEl('th', { text: column });
+    _placesDom.createElement(head, 'th', { text: column });
   }
 
-  const body = table.createEl('tbody');
+  const body = _placesDom.createElement(table, 'tbody');
+
   for (const row of trace.rows) {
-    const tr = body.createEl('tr');
-    tr.createEl('td', { text: row.key, cls: 'places-settings-trace-key' });
+    const tr = _placesDom.createElement(body, 'tr');
+
+    _placesDom.createElement(tr, 'td', { text: row.key, cls: 'places-settings-trace-key' });
     row.layerValues.forEach((value, index) => {
-      const td = tr.createEl('td', { text: value });
+      const td = _placesDom.createElement(tr, 'td', { text: value });
+
       if (value !== '' && index === row.winnerLayerIndex) {
-        td.addClass('places-settings-trace-winner');
+        _placesDom.addClass(td, 'places-settings-trace-winner');
       }
     });
-    tr.createEl('td', { text: row.resolved, cls: 'places-settings-trace-resolved' });
-    const sourceTd = tr.createEl('td', { text: row.note ? `${row.source} - ${row.note}` : row.source });
+    _placesDom.createElement(tr, 'td', { text: row.resolved, cls: 'places-settings-trace-resolved' });
+    const sourceTd = _placesDom.createElement(tr, 'td', { text: row.note ? `${row.source} - ${row.note}` : row.source });
+
     if (row.source.includes('derived')) {
-      sourceTd.addClass('places-settings-trace-derived');
+      _placesDom.addClass(sourceTd, 'places-settings-trace-derived');
     }
   }
 }

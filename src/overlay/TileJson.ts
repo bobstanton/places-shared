@@ -28,6 +28,7 @@ export interface ResolvedTileJson {
 // they are restored for template substitution to match.
 export function resolveTileUrlTemplate(template: string, baseUrl: string): string {
   if (/^https?:\/\//i.test(template)) return template;
+
   try {
     return new URL(template, baseUrl).href.replace(/%7B/gi, '{').replace(/%7D/gi, '}');
   } catch {
@@ -44,13 +45,16 @@ function parseVectorLayers(value: unknown): TileJsonVectorLayer[] | undefined {
   if (!Array.isArray(value)) return undefined;
 
   const layers: TileJsonVectorLayer[] = [];
+
   for (const entry of value) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
     const record = entry as Record<string, unknown>;
     const id = typeof record.id === 'string' ? record.id.trim() : '';
+
     if (!id) continue;
 
     const fields: Record<string, string> = {};
+
     if (record.fields && typeof record.fields === 'object' && !Array.isArray(record.fields)) {
       for (const [name, type] of Object.entries(record.fields as Record<string, unknown>)) {
         fields[name] = typeof type === 'string' ? type : String(type);
@@ -72,6 +76,7 @@ function parseVectorLayers(value: unknown): TileJsonVectorLayer[] | undefined {
 // Throws when the document has no usable tiles array.
 export function parseTileJson(document: Record<string, unknown>, baseUrl: string): ResolvedTileJson {
   const rawTiles = document.tiles;
+
   if (!Array.isArray(rawTiles) || rawTiles.length === 0 || rawTiles.some(tile => typeof tile !== 'string')) {
     throw new Error('TileJSON must include a non-empty tiles array');
   }
@@ -98,33 +103,33 @@ export function parseTileJson(document: Record<string, unknown>, baseUrl: string
 // render retries instead of caching the error.
 export function createTileJsonResolver(fetchTileJsonText: (url: string) => Promise<string>): (url: string) => Promise<ResolvedTileJson> {
   const cache = new Map<string, Promise<ResolvedTileJson>>();
+
   return url => {
     const cached = cache.get(url);
+
     if (cached) return cached;
     const load = fetchTileJsonText(url).then(text => parseTileJson(JSON.parse(text) as Record<string, unknown>, url));
+
     cache.set(url, load);
     load.catch(() => {
       if (cache.get(url) === load) cache.delete(url);
     });
+
     return load;
   };
 }
 
-// Build the GL vector source spec for a vector tile overlay. A map zoomed past
-// the tileset's maxzoom overzooms the deepest tiles instead of requesting
-// missing ones. Entry-level bounds/attribution override TileJSON values. Entry
-// visibility zoom (overlay.zoom) is a layer setting and never reaches the
-// source: a source-level clamp would forbid tile fetches for every entry
-// sharing the source.
-export function createVectorTileSourceSpec(overlay: VectorTileSourceDefinition, tileJson: ResolvedTileJson | undefined, transformTileUrl: (url: string) => string = url => url): Record<string, unknown> {
+export function createVectorTileSourceSpec(overlay: VectorTileSourceDefinition, tileJson: ResolvedTileJson | undefined): Record<string, unknown> {
   const tiles = tileJson?.tiles ?? overlay.tiles;
   const bounds = overlay.bounds ?? tileJson?.bounds;
   const attribution = overlay.attribution ?? tileJson?.attribution;
+
   return {
     type: 'vector',
-    ...(tiles ? { tiles: tiles.map(transformTileUrl) } : {}),
-    ...(tileJson?.minzoom !== undefined ? { minzoom: tileJson.minzoom } : {}),
-    ...(tileJson?.maxzoom !== undefined ? { maxzoom: tileJson.maxzoom } : {}),
+    ...(tiles ? { tiles } : {}),
+    ...(!tiles && overlay.url ? { url: overlay.url } : {}),
+    ...(tileJson?.minzoom !== undefined ? { minzoom: tileJson.minzoom } : overlay.tileZoom?.minZoom !== undefined ? { minzoom: overlay.tileZoom.minZoom } : {}),
+    ...(tileJson?.maxzoom !== undefined ? { maxzoom: tileJson.maxzoom } : overlay.tileZoom?.maxZoom !== undefined ? { maxzoom: overlay.tileZoom.maxZoom } : {}),
     ...(bounds ? { bounds } : {}),
     ...(attribution ? { attribution } : {}),
   };

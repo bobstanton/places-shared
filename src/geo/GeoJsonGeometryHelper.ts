@@ -28,12 +28,14 @@ const GEOMETRY_TYPES = [
 export function isGeoJsonGeometry(value: unknown): value is GeoJSON.Geometry {
   if (!value || typeof value !== 'object') return false;
   const type = (value as { type?: unknown }).type;
+
   return typeof type === 'string' && GEOMETRY_TYPES.some(geometryType => geometryType === type);
 }
 
 export function isGeoJsonFeature(value: unknown): value is GeoJSON.Feature {
   if (!isRecord(value) || value.type !== 'Feature') return false;
   if (value.geometry !== null && !isGeoJsonGeometry(value.geometry)) return false;
+
   return value.properties === null || value.properties === undefined || isRecord(value.properties);
 }
 
@@ -53,8 +55,10 @@ export function extractFirstGeoJsonCoordinateFromGeoJson(geojson: GeoJSON.GeoJSO
     case 'FeatureCollection':
       for (const feature of geojson.features) {
         const position = extractFirstGeoJsonCoordinate(feature.geometry);
+
         if (position) return position;
       }
+
       return null;
     case 'Feature':
       return extractFirstGeoJsonCoordinate(geojson.geometry);
@@ -82,23 +86,29 @@ export function extractFirstGeoJsonCoordinate(geometry: GeoJSON.Geometry | null 
     case 'GeometryCollection':
       for (const child of geometry.geometries) {
         const position = extractFirstGeoJsonCoordinate(child);
+
         if (position) return position;
       }
+
       return null;
   }
 }
 
 export function collectGeoJsonGeometryParts(geometry: GeoJSON.Geometry | null | undefined): GeoJsonGeometryParts {
   const parts: GeoJsonGeometryParts = { points: [], lines: [] };
+
   collectGeometryParts(geometry, parts);
+
   return parts;
 }
 
 export function forEachGeoJsonPosition(geometry: GeoJSON.Geometry | null | undefined, visitor: (position: GeoJsonPosition) => void): void {
   const parts = collectGeoJsonGeometryParts(geometry);
+
   for (const point of parts.points) {
     visitor(point);
   }
+
   for (const line of parts.lines) {
     for (const point of line) {
       visitor(point);
@@ -116,7 +126,7 @@ function collectGeometryParts(geometry: GeoJSON.Geometry | null | undefined, par
       parts.points.push(geometry.coordinates);
       break;
     case 'MultiPoint':
-      parts.points.push(...geometry.coordinates);
+      for (const point of geometry.coordinates) parts.points.push(point);
       break;
     case 'LineString':
       parts.lines.push(geometry.coordinates);
@@ -126,6 +136,7 @@ function collectGeometryParts(geometry: GeoJSON.Geometry | null | undefined, par
       for (const line of geometry.coordinates) {
         parts.lines.push(line);
       }
+
       break;
     case 'MultiPolygon':
       for (const polygon of geometry.coordinates) {
@@ -133,11 +144,13 @@ function collectGeometryParts(geometry: GeoJSON.Geometry | null | undefined, par
           parts.lines.push(ring);
         }
       }
+
       break;
     case 'GeometryCollection':
       for (const child of geometry.geometries) {
         collectGeometryParts(child, parts);
       }
+
       break;
   }
 }

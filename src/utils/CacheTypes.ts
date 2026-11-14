@@ -25,7 +25,9 @@ export function isCacheExpired(cachedTimestamp: number, ttl: number): boolean {
 export function isHistoricalData(endDate: Date | null | undefined): boolean {
   if (!endDate) return false;
   const today = new Date();
+
   today.setHours(0, 0, 0, 0);
+
   return endDate < today;
 }
 
@@ -33,6 +35,7 @@ export function getTTLForDateRange(baseTTL: number, endDate: Date | null | undef
   if (isHistoricalData(endDate)) {
     return CacheTTL.DAYS_7;
   }
+
   return baseTTL;
 }
 
@@ -70,9 +73,11 @@ export class SessionCacheStorage implements ICacheStorage {
 
   get(key: string): ICacheEntry | null {
     const entry = this.cache.get(key);
+
     if (!entry) return null;
     this.cache.delete(key);
     this.cache.set(key, entry);
+
     return entry;
   }
 
@@ -82,18 +87,23 @@ export class SessionCacheStorage implements ICacheStorage {
       t: Date.now(),
       d: data
     });
+
     if (this.cache.size > SessionCacheStorage.MAX_ENTRIES) {
       const oldest = this.cache.keys().next().value;
+
       if (oldest !== undefined) this.cache.delete(oldest);
     }
+
     return Promise.resolve();
   }
 
   getSize(): { count: number; sizeKB: number } {
     let sizeBytes = 0;
+
     for (const entry of this.cache.values()) {
       sizeBytes += JSON.stringify(entry).length;
     }
+
     return {
       count: this.cache.size,
       sizeKB: Math.round(sizeBytes / 1024 * 100) / 100
@@ -102,6 +112,7 @@ export class SessionCacheStorage implements ICacheStorage {
 
   clear(): Promise<void> {
     this.cache.clear();
+
     return Promise.resolve();
   }
 
@@ -111,16 +122,21 @@ export class SessionCacheStorage implements ICacheStorage {
 }
 
 export abstract class ServiceCachingDecoratorBase {
-  constructor(protected readonly cacheStorage: ICacheStorage, protected readonly ttl: number = CacheTTL.NEVER) {}
+  constructor(protected readonly cacheStorage: ICacheStorage, protected readonly ttl: number = CacheTTL.NEVER, private readonly onCacheHit?: () => void) {}
 
   protected async executeWithCache<T>(cacheKey: string, fn: () => Promise<T>): Promise<T> {
     const cached = this.cacheStorage.get(cacheKey);
+
     if (cached !== null && !isCacheExpired(cached.t, this.ttl)) {
+      this.onCacheHit?.();
+
       return cached.d as T;
     }
 
     const result = await fn();
+
     await this.cacheStorage.set(cacheKey, result);
+
     return result;
   }
 

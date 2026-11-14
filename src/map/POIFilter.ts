@@ -13,6 +13,7 @@ export function shouldFilterPOI(patterns: string[], fields: POIFilterFields): bo
   if (fields.class) valuesToCheck.push(fields.class);
   if (fields.subclass) valuesToCheck.push(fields.subclass);
   if (fields.name) valuesToCheck.push(fields.name);
+
   if (fields.tags) {
     valuesToCheck.push(...fields.tags.filter(t => t && t.trim()));
   }
@@ -23,6 +24,7 @@ export function shouldFilterPOI(patterns: string[], fields: POIFilterFields): bo
     if (!pattern || !pattern.trim()) continue;
 
     const regex = new RegExp(pattern, 'i');
+
     for (const value of valuesToCheck) {
       if (regex.test(value)) {
         return true;

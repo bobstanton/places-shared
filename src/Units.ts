@@ -33,9 +33,9 @@ export const mph = (value: number): MilesPerHour => value as MilesPerHour;
 export const minPerKm = (value: number): MinutesPerKilometer => value as MinutesPerKilometer;
 export const minPerMile = (value: number): MinutesPerMile => value as MinutesPerMile;
 
-const KM_TO_MILES = 0.621371;
-const MILES_TO_KM = 1.60934;
-const METERS_TO_FEET = 3.28084;
+const KM_TO_MILES = 1 / 1.609344;
+const MILES_TO_KM = 1.609344;
+const METERS_TO_FEET = 1 / 0.3048;
 const FEET_TO_METERS = 1 / 3.28084;
 
 export const kmToMeters = (k: Kilometers): Meters => meters(k * 1000);
@@ -108,25 +108,31 @@ export const getPaceUnit = (system: UnitsSystem): UnitInfo => ({
 
 export const formatKmInSystem = (distance: Kilometers, system: UnitsSystem, decimals: number = 2): string => {
   if (system === "imperial") return `${((distance as number) * KM_TO_MILES).toFixed(decimals)} mi`;
+
   return `${(distance as number).toFixed(decimals)} km`;
 };
 
 export const formatMetersInSystem = (elevation: Meters, system: UnitsSystem, decimals: number = 0): string => {
   if (system === "imperial") return `${((elevation as number) * METERS_TO_FEET).toFixed(decimals)} ft`;
+
   return `${(elevation as number).toFixed(decimals)} m`;
 };
 
 export const formatKphInSystem = (speed: KilometersPerHour, system: UnitsSystem, decimals: number = 1): string => {
   if (system === "imperial") return `${((speed as number) * KM_TO_MILES).toFixed(decimals)} mph`;
+
   return `${(speed as number).toFixed(decimals)} kph`;
 };
 
 export const formatMinPerKmInSystem = (pace: MinutesPerKilometer, system: UnitsSystem): string => {
   const value = system === "imperial" ? (pace as number) * MILES_TO_KM : (pace as number);
+
   if (value === 0 || !isFinite(value)) return "N/A";
-  const mins = Math.floor(value);
-  const secs = Math.round((value - mins) * 60);
+  const totalSeconds = Math.round(value * 60);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
   const unit = system === "imperial" ? "/mi" : "/km";
+
   return `${mins}:${secs.toString().padStart(2, '0')}${unit}`;
 };
 
@@ -144,20 +150,24 @@ export const calculateDuration = (distance: Kilometers, pace: MinutesPerKilomete
 
 export const getDistanceLabel = (system: UnitsSystem): string => {
   const unit = getDistanceUnit(system);
+
   return `Distance (${unit.abbreviation})`;
 };
 
 export const getSpeedLabel = (system: UnitsSystem): string => {
   const unit = getSpeedUnit(system);
+
   return `Speed (${unit.abbreviation})`;
 };
 
 export const getElevationLabel = (system: UnitsSystem): string => {
   const unit = getElevationUnit(system);
+
   return `Elevation (${unit.abbreviation})`;
 };
 
 export const getPaceLabel = (system: UnitsSystem): string => {
   const unit = getPaceUnit(system);
+
   return `Pace (${unit.abbreviation})`;
 };

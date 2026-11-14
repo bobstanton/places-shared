@@ -15,19 +15,35 @@ const LOGGER_GLOBAL_KEY = '__placesDebugLogger';
 // string grows with the count.
 const DEBUG_LOG_BUFFER_SIZE = 2000;
 
-// The library records every entry into its buffer, and writes to the developer
-// console only through a sink the caller supplies. Without one the
-// `consoleLogLevel` setting has nothing to act on: it sets the threshold, the
-// threshold is honoured, and no entry ever reaches the console.
 const consoleSink: DebugLogSink = (entry, args) => {
   const write = entry.level === 'error' ? console.error
     : entry.level === 'warn' ? console.warn
-    : entry.level === 'info' ? console.info
     : console.debug;
+
   write(...args);
+};
+
+const PERSISTENT_SINK_KEY = '__placesPersistentLogSink';
+
+function persistentSinkHolder(): { sink?: DebugLogSink } {
+  return sharedRegistryValue<{ sink?: DebugLogSink }>(PERSISTENT_SINK_KEY, () => ({}));
+}
+
+export function configurePersistentLogSink(sink: DebugLogSink | null): void {
+  persistentSinkHolder().sink = sink ?? undefined;
+}
+
+const fanOutSink: DebugLogSink = (entry, args) => {
+  consoleSink(entry, args);
+
+  try {
+    persistentSinkHolder().sink?.(entry, args);
+  } catch {
+    return;
+  }
 };
 
 export const logger = sharedRegistryValue<DebugLogger>(LOGGER_GLOBAL_KEY, () => createDebugLogger('Places', {
   bufferSize: DEBUG_LOG_BUFFER_SIZE,
-  sink: consoleSink,
+  sink: fanOutSink,
 }));

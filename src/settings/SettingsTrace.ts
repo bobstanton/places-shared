@@ -1,14 +1,4 @@
-// Settings-resolution tracing for the `debug: settings` block mode: given the
-// ordered layers a block merges (defaults, global settings, provider settings,
-// block source, ...) and the final resolved settings, produce a per-key table
-// of what each layer supplied and which value won.
-//
-// Provenance is reconstructed by comparison, not recorded during parsing: the
-// winner is the right-most layer that defines the key. When the resolved value
-// differs from the winning layer's raw value (clamping, unit conversion, enum
-// fallback), the row is marked derived and shows both.
-
-import { coerceScalarString } from '../utils/Utilities';
+import { coerceScalarString } from '../utils/index';
 
 export interface SettingsTraceLayer {
   // Column heading (e.g., "Default", "Global", "Block").
@@ -35,10 +25,9 @@ export interface SettingsTrace {
 }
 
 export interface BuildSettingsTraceOptions {
-  // Keys to leave out. Defaults to internal keys (leading underscore).
   exclude?: (key: string) => boolean;
-  // Notes per key, shown in the trace (e.g., clustering decision reason).
   notes?: Record<string, string>;
+  ignored?: Readonly<Record<string, unknown>>;
 }
 
 const VALUE_MAX_LENGTH = 60;
@@ -46,13 +35,17 @@ const VALUE_MAX_LENGTH = 60;
 // Compact, table-safe rendering of any settings value.
 export function formatTraceValue(value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
+
   if (Array.isArray(value)) {
     const joined = value.map(item => (typeof item === 'object' ? '{...}' : String(item))).join(', ');
+
     return truncate(`[${joined}]`);
   }
+
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === 'function') return '(function)';
   if (typeof value === 'object') return truncate(JSON.stringify(value) ?? '{...}');
+
   return truncate(coerceScalarString(value));
 }
 
@@ -68,23 +61,29 @@ export function buildSettingsTrace(layers: SettingsTraceLayer[], resolved: Recor
   const exclude = options?.exclude ?? ((key: string) => key.startsWith('_'));
 
   const keys = new Set<string>();
+
   for (const layer of layers) {
     for (const key of Object.keys(layer.values)) keys.add(key);
   }
+
   for (const key of Object.keys(resolved)) keys.add(key);
 
   const rows: SettingsTraceRow[] = [];
+
   for (const key of [...keys].sort()) {
     if (exclude(key)) continue;
 
     const resolvedValue = resolved[key];
+
     if (typeof resolvedValue === 'function') continue;
 
     const layerValues = layers.map(layer => formatTraceValue(layer.values[key]));
     const resolvedFormatted = formatTraceValue(resolvedValue);
+
     if (layerValues.every(value => value === '') && resolvedFormatted === '') continue;
 
     let winnerIndex = -1;
+
     for (let i = layers.length - 1; i >= 0; i--) {
       if (isSet(layers[i].values[key])) {
         winnerIndex = i;
@@ -93,6 +92,7 @@ export function buildSettingsTrace(layers: SettingsTraceLayer[], resolved: Recor
     }
 
     let source: string;
+
     if (!isSet(resolvedValue)) {
       source = '(unset)';
     } else if (winnerIndex === -1) {
@@ -106,25 +106,26 @@ export function buildSettingsTrace(layers: SettingsTraceLayer[], resolved: Recor
     rows.push({ key, layerValues, resolved: resolvedFormatted, winnerLayerIndex: winnerIndex, source, note: options?.notes?.[key] });
   }
 
+  for (const [key, value] of Object.entries(options?.ignored ?? {})) {
+    rows.push({
+      key,
+      layerValues: layers.map(layer => layer.name === 'Block' ? formatTraceValue(value) : ''),
+      resolved: '', winnerLayerIndex: -1, source: 'ignored',
+      note: 'Not used at this location',
+    });
+  }
+
   return { layers: layers.map(layer => layer.name), rows };
 }
 
-// Render the trace as a GitHub-flavored markdown table.
 export function settingsTraceToMarkdown(trace: SettingsTrace): string {
-  const escape = (text: string) => text.replace(/\|/g, '\\|');
-  const header = ['Setting', ...trace.layers, 'Resolved', 'Source'];
-  const lines = [
-    `| ${header.join(' | ')} |`,
-    `| ${header.map(() => '---').join(' | ')} |`,
-  ];
-  for (const row of trace.rows) {
-    const cells = [
-      row.key,
-      ...row.layerValues,
-      row.resolved,
-      row.note ? `${row.source} - ${row.note}` : row.source,
-    ];
-    lines.push(`| ${cells.map(escape).join(' | ')} |`);
-  }
-  return lines.join('\n');
+  const rows = [
+    ['Setting', ...trace.layers, 'Resolved', 'Source'],
+    ...trace.rows.map(row => [row.key, ...row.layerValues, row.resolved, row.note ? `${row.source} - ${row.note}` : row.source]),
+  ].map(cells => cells.map(text => text.replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, '<br>')));
+  const widths = rows[0].map((_, column) => Math.max(3, ...rows.map(row => row[column].length)));
+
+  rows.splice(1, 0, widths.map(width => '-'.repeat(width)));
+
+  return rows.map(cells => `| ${cells.map((cell, column) => cell.padEnd(widths[column])).join(' | ')} |`).join('\n');
 }

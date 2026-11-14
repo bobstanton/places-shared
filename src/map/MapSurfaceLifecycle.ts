@@ -44,6 +44,7 @@ function createMapSurfaceLifecycle(): MapSurfaceLifecycle {
     getState: () => state,
     subscribe: (listener: MapSurfaceLifecycleListener) => {
       listeners.add(listener);
+
       return () => listeners.delete(listener);
     },
     reportCreated: () => {
@@ -59,6 +60,7 @@ function createMapSurfaceLifecycle(): MapSurfaceLifecycle {
     reportSize: (width: number, height: number) => {
       const sized = width > 0 && height > 0;
       const wasSized = state.sized;
+
       if (sized === wasSized && width === state.width && height === state.height) return;
       state.width = width;
       state.height = height;
@@ -84,9 +86,11 @@ function createMapSurfaceLifecycle(): MapSurfaceLifecycle {
 
 export function ensureMapSurfaceLifecycle(container: HTMLElement): MapSurfaceLifecycle {
   const holder = container as HTMLElement & { [LIFECYCLE_PROP]?: MapSurfaceLifecycle };
+
   if (!holder[LIFECYCLE_PROP]) {
     holder[LIFECYCLE_PROP] = createMapSurfaceLifecycle();
   }
+
   return holder[LIFECYCLE_PROP];
 }
 

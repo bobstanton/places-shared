@@ -1,7 +1,7 @@
 export class DateParser {
-
   static relativeEndDateForCalendarDays(days: number): string {
     const wholeDays = Number.isFinite(days) ? Math.max(1, Math.floor(days)) : 1;
+
     return `+${wholeDays - 1}d`;
   }
 
@@ -17,6 +17,7 @@ export class DateParser {
       const year = parseInt(parts[0]);
       const month = parseInt(parts[1])
       const day = parseInt(parts[2]);
+
       return new Date(year, month - 1, day);
     }
 
@@ -24,6 +25,7 @@ export class DateParser {
       const year = parseInt(dateStr.substring(0, 4));
       const month = parseInt(dateStr.substring(4, 6));
       const day = parseInt(dateStr.substring(6, 8));
+
       return new Date(year, month - 1, day);
     }
 
@@ -32,6 +34,7 @@ export class DateParser {
       const month = parseInt(parts[0]);
       const day = parseInt(parts[1]);
       const year = parseInt(parts[2]);
+
       return new Date(year, month - 1, day);
     }
 
@@ -41,13 +44,17 @@ export class DateParser {
 
     if (dateStr === 'tomorrow') {
       const date = new Date(baseDate);
+
       date.setDate(date.getDate() + 1);
+
       return date;
     }
 
     if (dateStr === 'yesterday') {
       const date = new Date(baseDate);
+
       date.setDate(date.getDate() - 1);
+
       return date;
     }
 
@@ -56,6 +63,7 @@ export class DateParser {
       const dayOfWeek = date.getDay();
 
       const daysUntilSaturday = dayOfWeek === 6 ? 0 : (6 - dayOfWeek);
+
       date.setDate(date.getDate() + daysUntilSaturday);
 
       return date;
@@ -63,6 +71,7 @@ export class DateParser {
 
     // +3 or +3d, -2w, +1m. Unitless relative offsets default to days.
     const relativeMatch = dateStr.match(/^([+-]?)(\d+)([dwmy])?$/);
+
     if (relativeMatch) {
       const [, sign, amount, unit = 'd'] = relativeMatch;
       const multiplier = sign === '-' ? -1 : 1;
@@ -95,6 +104,7 @@ export class DateParser {
     const baseDate = new Date();
 
     let startDate: Date;
+
     try {
       startDate = settings.startDate
         ? this.parseDate(settings.startDate, baseDate)
@@ -104,6 +114,7 @@ export class DateParser {
     }
 
     let endDate: Date;
+
     try {
       endDate = settings.endDate
         ? this.parseDate(settings.endDate, startDate)
@@ -117,6 +128,7 @@ export class DateParser {
     }
 
     const daysDiff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+
     if (daysDiff > 365) {
       throw new Error('Date range cannot exceed 1 year (365 days)');
     }
@@ -126,11 +138,13 @@ export class DateParser {
 
   static formatDateForDisplay(date: Date | string): string {
     const d = typeof date === 'string' ? new Date(date) : date;
+
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   static formatDateTimeForDisplay(date: Date | string): string {
     const d = typeof date === 'string' ? new Date(date) : date;
+
     return d.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -146,11 +160,13 @@ export class DateParser {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
+
     return `${year}-${month}-${day}`;
   }
 
   static formatTime12Hour(date: Date | string): string {
     const d = typeof date === 'string' ? new Date(date) : date;
+
     return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
 
@@ -161,6 +177,7 @@ export class DateParser {
     const day = String(d.getDate()).padStart(2, '0');
     const hours = String(d.getHours()).padStart(2, '0');
     const minutes = String(d.getMinutes()).padStart(2, '0');
+
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   }
 }

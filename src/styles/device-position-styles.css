@@ -1,0 +1,40 @@
+div.places-device-position-marker {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.places-device-position-marker-dot {
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--background-primary);
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+
+.places-device-position-marker-heading {
+  display: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.places-device-position-marker.has-heading .places-device-position-marker-heading {
+  display: block;
+}
+
+.places-device-position-marker-heading::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: -10px;
+  width: 12px;
+  height: 12px;
+  background: var(--interactive-accent);
+  clip-path: polygon(50% 0, 100% 100%, 50% 75%, 0 100%);
+}

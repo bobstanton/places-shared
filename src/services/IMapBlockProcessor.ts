@@ -2,6 +2,7 @@ import { MapPlace } from "../Place";
 import { PlacesBoundingBox } from "../geo/PlacesBoundingBox";
 import type { MapCameraIntent, MapRenderPlan, MapRenderPlanDiff } from "../render/MapRenderPlan";
 import type { MapRenderRequest } from "../settings/MapConfiguration";
+import type { Coordinate } from "../geo/DistanceCalculator";
 
 export type MapCameraApplyResult =
   | { applied: true }
@@ -34,6 +35,8 @@ export interface IMapBlockProcessor {
   // Declares which semantic plan changes this provider can apply without rebuilding its map instance.
   getIncrementalUpdateCapabilities(): Readonly<MapIncrementalUpdateCapabilities>;
   getCurrentPlaces(container: HTMLElement): MapPlace[] | null;
+  // Stable identity for one live map and its control capabilities. A replacement
+  // map returns a new handle so surfaces can dispose and rebind their controls.
   getMapControlHandle?(container: HTMLElement): MapControlHandle | null;
   // An empty array clears the markers and exits focus mode.
   setGeocodingSearchMarkers?(places: MapPlace[], container: HTMLElement): void;
@@ -52,10 +55,23 @@ export interface IMapBlockProcessor {
   applyMarkerVisibility?(container: HTMLElement, hiddenPlaceIds: readonly string[]): void;
 }
 
+export interface MapViewState {
+  bounds: PlacesBoundingBox;
+  center: Coordinate;
+  zoom: number;
+  bearing: number;
+  pitch: number;
+  width: number;
+  height: number;
+}
+
 export interface MapControlHandle {
   getBounds?: () => PlacesBoundingBox;
+  getViewState?: () => MapViewState;
+  onBoundsChanged?: (listener: () => void) => () => void;
   centerOnPlace?: (place: MapPlace) => void;
   highlightPlace?: (place: MapPlace) => void;
   clearHighlight?: () => void;
   setGeocodingSearchMarkers?: (places: MapPlace[]) => void;
+  setDevicePositionControl?: (button: HTMLButtonElement | null) => void;
 }

@@ -1,4 +1,5 @@
-import { setIcon } from 'obsidian';
+import * as _placesDom from '../utils';
+import { setIcon } from '../services/index';
 
 export interface FloatingCopyButtonOptions {
   buttonContainer: HTMLElement;
@@ -11,7 +12,8 @@ export interface FloatingCopyButtonOptions {
 
 export function createFloatingCopyButton(options: FloatingCopyButtonOptions): HTMLElement {
   const idleLabel = options.ariaLabel ?? 'Copy to Markdown';
-  const button = options.buttonContainer.createDiv('places-floating-button');
+  const button = _placesDom.createDiv(options.buttonContainer, 'places-floating-button');
+
   button.setAttribute('aria-label', idleLabel);
   setIcon(button, 'copy');
   let busy = false;
@@ -19,8 +21,8 @@ export function createFloatingCopyButton(options: FloatingCopyButtonOptions): HT
   button.addEventListener('click', () => {
     if (busy) return;
     busy = true;
-    options.buttonContainer.addClass('places-floating-buttons-active');
-    button.addClass('is-loading');
+    _placesDom.addClass(options.buttonContainer, 'places-floating-buttons-active');
+    _placesDom.addClass(button, 'is-loading');
     setIcon(button, 'loader');
 
     void options.onCopy()
@@ -37,8 +39,8 @@ export function createFloatingCopyButton(options: FloatingCopyButtonOptions): HT
           busy = false;
           setIcon(button, 'copy');
           button.setAttribute('aria-label', idleLabel);
-          options.buttonContainer.removeClass('places-floating-buttons-active');
-          button.removeClass('is-loading');
+          _placesDom.removeClass(options.buttonContainer, 'places-floating-buttons-active');
+          _placesDom.removeClass(button, 'is-loading');
         }, options.resetDelayMs ?? 2000);
       });
   });

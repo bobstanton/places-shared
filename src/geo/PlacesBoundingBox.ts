@@ -33,17 +33,20 @@ export class PlacesBoundingBox {
     if (lat > this.maxLat) this.maxLat = lat;
     if (lng > this.maxLng) this.maxLng = lng;
     const shiftedLng = this.shiftLongitude(lng);
+
     if (shiftedLng < this.minShiftedLng) this.minShiftedLng = shiftedLng;
     if (shiftedLng > this.maxShiftedLng) this.maxShiftedLng = shiftedLng;
   }
 
   getLngLatBounds(): [[number, number], [number, number]] {
     const [west, east] = this.getLongitudeBounds();
+
     return [[west, this.minLat], [east, this.maxLat]];
   }
 
   getLatLngBounds(): [[number, number], [number, number]] {
     const [west, east] = this.getLongitudeBounds();
+
     return [[this.minLat, west], [this.maxLat, east]];
   }
 
@@ -53,11 +56,13 @@ export class PlacesBoundingBox {
 
   getLngLatCenter(): [number, number] {
     const [west, east] = this.getLongitudeBounds();
+
     return [this.normalizeLongitude((west + east) / 2), (this.minLat + this.maxLat) / 2];
   }
 
   getLatLngCenter(): [number, number] {
     const [west, east] = this.getLongitudeBounds();
+
     return [(this.minLat + this.maxLat) / 2, this.normalizeLongitude((west + east) / 2)];
   }
 
@@ -139,6 +144,7 @@ export class PlacesBoundingBox {
   private getLongitudeBounds(): [number, number] {
     const standardSpan = this.maxLng - this.minLng;
     const shiftedSpan = this.maxShiftedLng - this.minShiftedLng;
+
     return shiftedSpan < standardSpan
       ? [this.minShiftedLng, this.maxShiftedLng]
       : [this.minLng, this.maxLng];
@@ -159,8 +165,28 @@ export class PlacesBoundingBox {
 
   static fromGeoJSON(geojson: unknown): PlacesBoundingBox {
     const bbox = new PlacesBoundingBox();
+
     PlacesBoundingBox.extractGeoJSONCoordinates(geojson, bbox);
+
     return bbox;
+  }
+
+  private static readonly immutableGeoJSONBounds = new WeakMap<object, PlacesBoundingBox>();
+
+  static fromImmutableGeoJSON(geojson: object | undefined): PlacesBoundingBox {
+    if (!geojson) return new PlacesBoundingBox();
+    let cached = this.immutableGeoJSONBounds.get(geojson);
+
+    if (!cached) {
+      cached = this.fromGeoJSON(geojson);
+      this.immutableGeoJSONBounds.set(geojson, cached);
+    }
+
+    const bounds = new PlacesBoundingBox();
+
+    bounds.extend(cached);
+
+    return bounds;
   }
 
   private static extractGeoJSONCoordinates(obj: unknown, bbox: PlacesBoundingBox): void {

@@ -1,10 +1,21 @@
+import type { ZoomScaledNumber } from '../utils/ZoomScaledNumber';
+export { parseZoomScaledNumber, type ZoomScaledNumber, type ZoomValueStop } from '../utils/ZoomScaledNumber';
 import type * as GeoJSON from 'geojson';
 import { PlacesBoundingBox } from '../geo/PlacesBoundingBox';
 import { hashString36 } from '../utils/Utilities';
 import type { ZoomRange } from '../ZoomVisibility';
+import type { PopupContentConfig } from '../settings/PopupConfiguration';
 
 export type { MapPlace } from '../Place';
 export { parseMapPlaceProperty } from '../Place';
+
+export type OverlayRenderBand = 'background' | 'default';
+
+export const OVERLAY_RENDER_BAND_PROPERTY = 'places_overlay_render_band';
+
+interface RenderBandedOverlay {
+  renderBand?: OverlayRenderBand;
+}
 
 export interface ImageOverlayBounds {
   swLat: number;
@@ -24,13 +35,14 @@ export interface ImageOverlayCorners {
   swLng: number;
 }
 
-export interface GeoJSONOverlay {
+export interface GeoJSONOverlay extends RenderBandedOverlay {
   type: 'geojson';
   geojson: GeoJSON.GeoJSON;
   source: string;
   zoom?: ZoomRange;
   labelTemplate?: string;
   waypointLabelTemplate?: string;
+  popup?: PopupContentConfig;
   style?: OverlayRenderStyle;
   hoverStyle?: OverlayRenderStyle;
 }
@@ -39,7 +51,7 @@ export interface ImageOverlayStyle {
   opacity?: number;
 }
 
-export interface ImageOverlay {
+export interface ImageOverlay extends RenderBandedOverlay {
   type: 'image';
   url: string;
   bounds?: ImageOverlayBounds;
@@ -50,14 +62,6 @@ export interface ImageOverlay {
 }
 
 export type VectorTileLayerType = 'line' | 'fill' | 'circle' | 'symbol';
-
-export interface ZoomValueStop {
-  readonly zoom: number;
-  readonly value: number;
-}
-
-// A numeric style value: a constant, or piecewise-linear `@z` zoom stops.
-export type ZoomScaledNumber = number | readonly ZoomValueStop[];
 
 export interface OverlayRenderStyle {
   color?: string;
@@ -77,39 +81,15 @@ export interface OverlayRenderStyle {
   iconSize?: number;
 }
 
-// Parse a numeric style value that also accepts the `@z` zoom-stop syntax
-// (`1 @z10, 2.5 @z14`). Stops are sorted by zoom; a single stop collapses to a
-// constant. Returns undefined for empty input or any malformed part, leaving
-// callers to raise their own parse error.
-export function parseZoomScaledNumber(value: unknown): ZoomScaledNumber | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-  if (typeof value !== 'string') return undefined;
-
-  const raw = value.trim();
-  if (!raw.includes('@')) {
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-
-  const stops: ZoomValueStop[] = [];
-  for (const part of raw.split(',')) {
-    const match = part.trim().match(/^(\d*\.?\d+)\s*@\s*z?\s*(\d*\.?\d+)$/i);
-    if (!match) return undefined;
-    stops.push({ value: parseFloat(match[1]), zoom: parseFloat(match[2]) });
-  }
-  if (stops.length === 0) return undefined;
-  stops.sort((a, b) => a.zoom - b.zoom);
-  return stops.length === 1 ? stops[0].value : stops;
-}
-
 // Stops become a linear zoom `interpolate` expression, supported by both MapLibre GL and mapbox-gl for the affected properties.
 export function zoomScaledNumberToExpression(value: ZoomScaledNumber | undefined): number | unknown[] | undefined {
   if (value === undefined || typeof value === 'number') return value;
   const expression: unknown[] = ['interpolate', ['linear'], ['zoom']];
+
   for (const stop of value) {
     expression.push(stop.zoom, stop.value);
   }
+
   return expression;
 }
 
@@ -119,54 +99,50 @@ export function zoomScaledNumberToExpression(value: ZoomScaledNumber | undefined
 export function parseVectorTileDashArray(value: string | undefined): string | undefined {
   if (value === undefined || value.trim() === '') return undefined;
   const parts = value.split(',').map(part => part.trim());
+
   if (parts.some(part => part === '' || !Number.isFinite(Number(part)))) {
     throw new Error(`Invalid dashArray "${value}". Expected comma-separated dash and gap lengths, e.g. 2,2.`);
   }
+
   return parts.join(',');
 }
 
 // MapLibre filter expression, e.g. `['==', ['get', 'index'], 1]`.
 export type VectorTileFilter = unknown[];
 
-export interface VectorTileOverlay {
+export interface VectorTileOverlay extends RenderBandedOverlay {
   type: 'vector-tile';
   source: string;
-  // TileJSON document, not a tile template.
   url?: string;
-  // Tile URL templates, e.g. https://host/{z}/{x}/{y}.pbf.
   tiles?: string[];
   sourceLayer: string;
   layerType: VectorTileLayerType;
   zoom?: ZoomRange;
   bounds?: [number, number, number, number];
   attribution?: string;
-  // MapLibre filter expression restricting which features render (compiled from the filter DSL).
   filter?: VectorTileFilter;
-  // Symbol layers: feature property to label with (rendered via ["get", textField]).
   textField?: string;
-  // Defaults to line (contour-style labels).
   symbolPlacement?: 'point' | 'line' | 'line-center';
-  // Symbol layers: external sprite sheet URL (base URL without .json/.png suffix).
   sprite?: string;
-  // Symbol layers: sprite image name rendered at each feature.
   icon?: string;
   style?: OverlayRenderStyle;
-  // Partial style applied to the individual feature under the pointer.
   hoverStyle?: OverlayRenderStyle;
+  popup?: PopupContentConfig;
+  hitLabel?: string;
+  tileZoom?: ZoomRange;
+  tileProvider?: string;
 }
 
-// The fields of a vector tile overlay that reach the GL SOURCE spec (not its layers).
 export interface VectorTileSourceDefinition {
   url?: string;
   tiles?: readonly string[];
   bounds?: readonly [number, number, number, number];
   attribution?: string;
+  tileZoom?: ZoomRange;
 }
 
-// Entries with equal signatures share one GL source. Entry visibility zoom is
-// deliberately absent: it applies to the layer only.
 export function getVectorTileOverlaySourceSignature(overlay: VectorTileSourceDefinition): string {
-  return JSON.stringify([overlay.url ?? null, overlay.tiles ?? null, overlay.bounds ?? null, overlay.attribution ?? null]);
+  return JSON.stringify([overlay.url ?? null, overlay.tiles ?? null, overlay.bounds ?? null, overlay.attribution ?? null, overlay.tileZoom ?? null]);
 }
 
 // Deterministic GL source id shared by all entries with an identical source definition.
@@ -178,25 +154,33 @@ const FILTER_OPERATORS = ['==', '!=', '>=', '<=', '>', '<'] as const;
 
 function parseVectorFilterValue(raw: string): string | number | boolean {
   const value = raw.trim();
+
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
     return value.slice(1, -1);
   }
+
   if (value === 'true') return true;
   if (value === 'false') return false;
   const numeric = Number(value);
+
   return value !== '' && Number.isFinite(numeric) ? numeric : value;
 }
 
 function parseVectorFilterClause(clause: string): VectorTileFilter | undefined {
   for (const op of FILTER_OPERATORS) {
     const index = clause.indexOf(op);
+
     if (index <= 0) continue;
     const property = clause.slice(0, index).trim();
     const rawValue = clause.slice(index + op.length).trim();
+
     if (!/^[\w:.-]+$/.test(property) || rawValue === '') continue;
+
     return [op, ['get', property], parseVectorFilterValue(rawValue)];
   }
+
   const bare = clause.trim();
+
   return /^[\w:.-]+$/.test(bare) ? ['has', bare] : undefined;
 }
 
@@ -209,13 +193,17 @@ function parseVectorFilterClause(clause: string): VectorTileFilter | undefined {
 //   `ele >= 1000 AND ele <= 3000` -> `['all', [...], [...]]`
 export function parseVectorTileFilter(input: string): VectorTileFilter | undefined {
   const clauses = input.split(/\s+AND\s+/i).map(part => part.trim()).filter(Boolean);
+
   if (clauses.length === 0) return undefined;
   const compiled: VectorTileFilter[] = [];
+
   for (const clause of clauses) {
     const expression = parseVectorFilterClause(clause);
+
     if (!expression) return undefined;
     compiled.push(expression);
   }
+
   return compiled.length === 1 ? compiled[0] : ['all', ...compiled];
 }
 
@@ -238,6 +226,41 @@ export function isVectorTileOverlay(overlay: Overlay): overlay is VectorTileOver
   return overlay.type === 'vector-tile';
 }
 
+export function getGeoJsonFeatureRenderBand(feature: GeoJSON.Feature): OverlayRenderBand {
+  const rawProperties: unknown = feature.properties;
+  const properties = rawProperties && typeof rawProperties === 'object'
+    ? rawProperties as Readonly<Record<string, unknown>>
+    : {};
+  const explicitBand = properties[OVERLAY_RENDER_BAND_PROPERTY];
+
+  if (explicitBand === 'background' || explicitBand === 'default') return explicitBand;
+
+  const geometryType = feature.geometry?.type;
+  const isLegacyIsochrone = (
+    (geometryType === 'Polygon' || geometryType === 'MultiPolygon' || geometryType === 'LineString' || geometryType === 'MultiLineString')
+    && Boolean(properties.metric)
+    && properties.contour !== undefined
+    && Boolean(properties.provider)
+    && (properties.fill !== undefined || properties['fill-opacity'] !== undefined || properties.stroke !== undefined)
+  );
+
+  return isLegacyIsochrone ? 'background' : 'default';
+}
+
+export function getGeoJsonRenderBand(geojson: GeoJSON.GeoJSON): OverlayRenderBand {
+  const features = getGeoJsonFeatures(geojson);
+
+  return features.length > 0 && features.every(feature => getGeoJsonFeatureRenderBand(feature) === 'background')
+    ? 'background'
+    : 'default';
+}
+
+export function resolveOverlayRenderBand(overlay: Overlay): OverlayRenderBand {
+  if (overlay.renderBand) return overlay.renderBand;
+
+  return isGeoJSONOverlay(overlay) ? getGeoJsonRenderBand(overlay.geojson) : 'default';
+}
+
 export interface OverlayBoundsExtensionResult {
   overlays: readonly Overlay[];
 }
@@ -246,6 +269,7 @@ export function extendBoundingBoxWithOverlays(boundingBox: PlacesBoundingBox, ov
   for (const overlay of overlays) {
       if (isGeoJSONOverlay(overlay) && overlay.geojson) {
         const overlayBounds = PlacesBoundingBox.fromGeoJSON(overlay.geojson);
+
         if (overlayBounds.isValid()) {
           boundingBox.extend(overlayBounds);
         }
@@ -261,10 +285,12 @@ export function extendBoundingBoxWithOverlays(boundingBox: PlacesBoundingBox, ov
         }
       } else if (isVectorTileOverlay(overlay) && overlay.bounds) {
         const [west, south, east, north] = overlay.bounds;
+
         boundingBox.update(south, west);
         boundingBox.update(north, east);
       }
   }
+
   return { overlays };
 }
 
@@ -282,12 +308,14 @@ export function extractOverlayPointFeatures(overlays: readonly Overlay[]): GeoJS
 
 function extractPointFeatures(geojson: GeoJSON.GeoJSON, source: string): GeoJSON.Feature[] {
   const points: GeoJSON.Feature[] = [];
+
   for (const feature of getGeoJsonFeatures(geojson)) {
     const properties = {
       ...feature.properties,
       _isOverlayPoint: true,
       _overlaySource: source,
     };
+
     if (feature.geometry?.type === 'Point') {
       points.push({ ...feature, properties });
     } else if (feature.geometry?.type === 'MultiPoint') {
@@ -301,6 +329,7 @@ function extractPointFeatures(geojson: GeoJSON.GeoJSON, source: string): GeoJSON
       });
     }
   }
+
   return points;
 }
 
@@ -309,6 +338,7 @@ export function extractGeoJsonLineLatLngCoordinates(geojson: GeoJSON.GeoJSON): A
 
   for (const feature of getGeoJsonFeatures(geojson)) {
     const geometry = feature.geometry;
+
     if (!geometry) continue;
 
     if (geometry.type === 'LineString') {
@@ -331,9 +361,11 @@ export function getGeoJsonFeatures(geojson: GeoJSON.GeoJSON): GeoJSON.Feature[] 
   if (geojson.type === 'FeatureCollection') {
     return [...geojson.features];
   }
+
   if (geojson.type === 'Feature') {
     return [geojson];
   }
+
   return [{
     type: 'Feature',
     properties: {},
@@ -341,16 +373,17 @@ export function getGeoJsonFeatures(geojson: GeoJSON.GeoJSON): GeoJSON.Feature[] 
   }];
 }
 
-// Styling for note-backed tracks. Code-block overlays use OverlayRenderStyle.
 export interface TrackOverlayStyle {
   color?: string;
   fillColor?: string;
   weight?: number;
-  opacity?: number; //0-1
-  fillOpacity?: number; //0-1
+  opacity?: number;  
+  fillOpacity?: number;  
   style?: 'solid' | 'dashed';
   dashArray?: string;
   outline?: boolean;
+  outlineStyle?: 'solid' | 'dashed';
+  outlineDashArray?: string;
   outlineColor?: string;
   outlineWeight?: number;
   outlineOpacity?: number;

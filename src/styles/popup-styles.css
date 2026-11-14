@@ -2,6 +2,54 @@
   min-width: 200px;
 }
 
+.places-popup-note,
+.places-popup-body {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.places-popup-note :is(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6),
+.places-popup-markdown :is(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6),
+.places-popup-custom :is(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6) {
+  margin-block: 4px;
+  margin-inline: 0;
+}
+
+.places-popup-note :is(ul, ol),
+.places-popup-markdown :is(ul, ol),
+.places-popup-custom :is(ul, ol) {
+  padding-inline-start: 1.4em;
+}
+
+.places-popup-note blockquote,
+.places-popup-markdown blockquote,
+.places-popup-custom blockquote {
+  padding-inline-start: 8px;
+  border-inline-start: 2px solid var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.places-popup-note :is(h1, h2, h3, h4, h5, h6),
+.places-popup-markdown :is(h1, h2, h3, h4, h5, h6),
+.places-popup-custom :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 8px 4px;
+  line-height: 1.3;
+}
+
+.places-popup-note > :first-child,
+.places-popup-markdown > :first-child,
+.places-popup-custom > :first-child {
+  margin-block-start: 0;
+}
+
+.places-popup-note > :last-child,
+.places-popup-markdown > :last-child,
+.places-popup-custom > :last-child {
+  margin-block-end: 0;
+}
+
 .places-popup-header {
   display: flex;
   align-items: center;
@@ -199,4 +247,73 @@ a.places-popup-name:hover {
 .places-popup-debug-empty {
   color: var(--text-faint);
   margin-top: 4px;
+}
+
+.places-popup-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-2-2);
+  margin: -2px 0 6px;
+  padding-bottom: 4px;
+  padding-right: 32px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.places-popup-pager-step,
+.places-popup-pager-counter {
+  box-shadow: none;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+}
+
+.places-popup-pager-step {
+  font-size: 16px;
+  min-width: 32px;
+}
+
+.places-popup-pager-step:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.places-popup-pager-step:not(:disabled):hover,
+.places-popup-pager-counter:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.places-popup-page {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.places-popup-page-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.places-popup-page-row.is-active {
+  background: var(--background-modifier-hover);
+}
+
+.places-popup-page-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.places-popup-page-kind {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
 }

@@ -15,6 +15,7 @@ export interface MapTrackSelection {
 
 export function dispatchMapTrackSelection(target: HTMLElement, selection: MapTrackSelection): void {
   const EventConstructor = target.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
+
   target.dispatchEvent(new EventConstructor<MapTrackSelection>(MAP_TRACK_SELECTION_EVENT, {
     detail: selection,
     bubbles: true,
@@ -24,8 +25,11 @@ export function dispatchMapTrackSelection(target: HTMLElement, selection: MapTra
 export function onMapTrackSelection(target: HTMLElement, handler: (selection: MapTrackSelection) => void): () => void {
   const listener = (event: Event): void => {
     const selection = (event as CustomEvent<MapTrackSelection>).detail;
+
     if (selection?.place) handler(selection);
   };
+
   target.addEventListener(MAP_TRACK_SELECTION_EVENT, listener);
+
   return () => target.removeEventListener(MAP_TRACK_SELECTION_EVENT, listener);
 }

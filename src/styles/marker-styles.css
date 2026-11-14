@@ -52,6 +52,14 @@
   transform-origin: center;
 }
 
+.places-marker-icon-picture {
+  background-image: var(--places-marker-picture);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  text-shadow: none;
+}
+
 .places-marker-icon.places-marker-opacity-custom {
   opacity: var(--places-marker-opacity);
 }

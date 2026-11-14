@@ -1,4 +1,4 @@
-import { logger } from "./logger";
+import { logger } from "./index";
 
 export interface RuntimeDebugCompatibility {
   globalFlag?: string;
@@ -13,6 +13,7 @@ type RuntimeDebugGlobal = Window & {
 export function isRuntimeDebugEnabled(channel: string, compatibility: RuntimeDebugCompatibility = {}): boolean {
   const globalState = window as unknown as RuntimeDebugGlobal;
   const configured = globalState.__placesDebugFeatures;
+
   if (configured instanceof Set && configured.has(channel)) return true;
   if (configured && !(configured instanceof Set) && configured[channel] === true) return true;
   if (compatibility.globalFlag && globalState[compatibility.globalFlag] === true) return true;
@@ -25,14 +26,10 @@ export function isRuntimeDebugEnabled(channel: string, compatibility: RuntimeDeb
   }
 }
 
-export function logRuntimeDebug(
-  channel: string,
-  stage: string,
-  payload?: Record<string, unknown>,
-  options: RuntimeDebugCompatibility & { scope?: string } = {},
-): void {
+export function logRuntimeDebug(channel: string, stage: string, payload?: Record<string, unknown>, options: RuntimeDebugCompatibility & { scope?: string } = {}): void {
   if (!isRuntimeDebugEnabled(channel, options)) return;
   const scopedLogger = logger.scope(options.scope ?? channel);
+
   if (payload) {
     scopedLogger.debug(`[${channel}] ${stage}`, payload);
   } else {

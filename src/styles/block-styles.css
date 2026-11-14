@@ -1,0 +1,4 @@
+.places-block-width {
+  width: var(--places-block-width, 100%);
+  max-width: 100%;
+}

@@ -6,6 +6,7 @@ import { addRouteEndpointFeatures, addRouteLabelFeature } from './RouteOverlayGe
 export async function prepareDirectionsOverlayNote(routeFeature: GeoJSON.Feature, sourcePath?: string): Promise<RouteOverlayPlaceNoteRequest> {
   const routeLineFeature = cloneRouteLineFeature(routeFeature);
   const geojson = await createRouteFeatureCollection(routeLineFeature);
+
   return {
     kind: 'route-overlay',
     overlayKind: 'directions',
@@ -18,6 +19,7 @@ export async function prepareDirectionsOverlayNote(routeFeature: GeoJSON.Feature
 
 export function prepareIsochroneOverlayNote(geojson: GeoJSON.FeatureCollection, sourcePath?: string): RouteOverlayPlaceNoteRequest {
   const clonedGeoJson = cloneFeatureCollection(geojson);
+
   return {
     kind: 'route-overlay',
     overlayKind: 'isochrone',
@@ -34,6 +36,7 @@ function cloneRouteLineFeature(routeFeature: GeoJSON.Feature): GeoJSON.Feature {
   }
 
   const properties = { ...(routeFeature.properties ?? {}) };
+
   delete properties.labelColor;
   delete properties.labelHaloColor;
   delete properties.labelHaloWidth;
@@ -50,10 +53,12 @@ function cloneRouteLineFeature(routeFeature: GeoJSON.Feature): GeoJSON.Feature {
 
 async function createRouteFeatureCollection(routeFeature: GeoJSON.Feature): Promise<GeoJSON.FeatureCollection> {
   const features: GeoJSON.Feature[] = [routeFeature];
+
   // Exported/saved notes are a static snapshot: no request is in scope, and endpoint labels fall back to
   // the coded default (Start: / Stop N: / End:).
   await addRouteEndpointFeatures(features, routeFeature);
   const label: unknown = routeFeature.properties?.route_label;
+
   if (typeof label === 'string' && label.trim()) {
     addRouteLabelFeature(features, routeFeature, label);
   }
@@ -71,14 +76,17 @@ export function cloneFeatureCollection(geojson: GeoJSON.FeatureCollection): GeoJ
 function getRouteNoteName(routeFeature: GeoJSON.Feature): string {
   const properties: Record<string, unknown> = routeFeature.properties ?? {};
   const waypoints = properties.waypoints;
+
   if (Array.isArray(waypoints) && waypoints.length >= 2) {
     return `${String(waypoints[0])} to ${String(waypoints[waypoints.length - 1])} Directions`;
   }
 
   const name = properties.name ?? properties.title;
+
   if (name) return `${coerceScalarString(name)} Directions`;
 
   const index = typeof properties.route_index === 'number' ? properties.route_index + 1 : undefined;
+
   return index ? `Route ${index} Directions` : 'Directions Overlay';
 }
 
@@ -89,24 +97,27 @@ function getIsochroneNoteName(geojson: GeoJSON.FeatureCollection): string {
 
   if (names.length > 0) {
     const firstName = names[0].replace(/\s+\d+(?:\.\d+)?\s*(?:min|m|km|mi|ft)$/i, '').trim();
+
     return `${firstName || names[0]} Isochrones`;
   }
 
   return 'Isochrone Overlay';
 }
 
-
 function getFirstCoordinate(geometry: GeoJSON.Geometry | null): GeoJSON.Position | null {
   if (!geometry) return null;
   if (geometry.type === 'LineString') return geometry.coordinates[0] ?? null;
   if (geometry.type === 'MultiLineString') return geometry.coordinates[0]?.[0] ?? null;
+
   return null;
 }
 
 function getFirstCoordinateFromFeatureCollection(geojson: GeoJSON.FeatureCollection): GeoJSON.Position | null {
   for (const feature of geojson.features) {
     const coordinate = getFirstCoordinate(feature.geometry);
+
     if (coordinate) return coordinate;
   }
+
   return null;
 }

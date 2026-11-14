@@ -26,6 +26,7 @@ export function createMapCameraGuard(options?: MapCameraGuardOptions): MapCamera
         depth = Math.max(0, depth - 1);
       };
       const staleTimer = schedule(release, staleReleaseMs);
+
       return release;
     },
     isProgrammaticMove: () => depth > 0,

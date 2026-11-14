@@ -1,11 +1,11 @@
-import type { Coordinate } from '../geo/DistanceCalculator';
-import { PolylineCodec } from '../track/PolylineCodec';
-import { formatProviderResponseShapeError } from './ProviderApiError';
-import { type SnapMatchedEdge, type SnapRequest, type SnapResult, type SnappedPoint, shouldSendTimestamps } from './ISnapService';
-import { parseShortDistanceAsMeters } from '../settings/ParseHelpers';
-import type { UnitsSystem } from '../Units';
-import { mapTravelMode } from './ProviderServiceHelpers';
-import type { ValhallaTraceEdge } from './ValhallaTraceMatch';
+import type { Coordinate } from '../geo/index';
+import { PolylineCodec } from '../track/index';
+import { formatProviderResponseShapeError } from './index';
+import { type SnapMatchedEdge, type SnapRequest, type SnapResult, type SnappedPoint, shouldSendTimestamps } from './index';
+import { parseShortDistanceAsMeters } from '../settings/index';
+import type { UnitsSystem } from '../units/index';
+import { mapTravelMode } from './index';
+import type { ValhallaTraceEdge } from './index';
 
 const REQUIRED_TRACE_ATTRIBUTES = ['matched.point', 'matched.type', 'matched.edge_index', 'shape'] as const;
 const TRACE_OPTION_DISTANCE_KEYS = new Set(['search_radius', 'gps_accuracy', 'breakage_distance', 'interpolation_distance']);
@@ -13,14 +13,18 @@ const TRACE_OPTION_DISTANCE_KEYS = new Set(['search_radius', 'gps_accuracy', 'br
 export function normalizeTraceOptions(traceOptions: Record<string, unknown> | undefined, units: UnitsSystem): Record<string, unknown> | undefined {
   if (!traceOptions || Object.keys(traceOptions).length === 0) return undefined;
   const normalized: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(traceOptions)) {
     if (!TRACE_OPTION_DISTANCE_KEYS.has(key)) {
       normalized[key] = value;
       continue;
     }
-    const metres = parseShortDistanceAsMeters(value, units);
-    normalized[key] = metres === undefined ? value : Number(Number(metres).toFixed(3));
+
+    const meters = parseShortDistanceAsMeters(value, units);
+
+    normalized[key] = meters === undefined ? value : Number(Number(meters).toFixed(3));
   }
+
   return normalized;
 }
 
@@ -47,6 +51,7 @@ export function buildValhallaTraceBody(request: SnapRequest, costings: { walk: s
       : {}),
     ...(() => {
       const traceOptions = normalizeTraceOptions(request.traceOptions, units);
+
       return traceOptions ? { trace_options: traceOptions } : {};
     })(),
     ...buildAttributeFilter(request.attributes),
@@ -57,6 +62,7 @@ export function buildValhallaTraceBody(request: SnapRequest, costings: { walk: s
 export function buildAttributeFilter(attributes: string[] | undefined): Record<string, unknown> {
   if (!attributes?.length) return {};
   const requested = new Set<string>([...REQUIRED_TRACE_ATTRIBUTES, ...attributes]);
+
   return { filters: { attributes: [...requested], action: 'include' } };
 }
 
@@ -80,6 +86,7 @@ export interface SnapResultInput {
 // point, plus the matched way geometry when the provider sent it.
 export function toSnapResult(input: SnapResultInput): SnapResult {
   const { provider, request, matched } = input;
+
   if (!Array.isArray(matched) || matched.length !== request.points.length) {
     throw new Error(formatProviderResponseShapeError({
       provider,
@@ -101,6 +108,7 @@ export function toSnapResult(input: SnapResultInput): SnapResult {
 // Only the attributes Places surfaces; the rest of a trace edge is left where it is.
 function toMatchedEdges(edges: ValhallaTraceEdge[] | undefined): SnapMatchedEdge[] | undefined {
   if (!Array.isArray(edges) || edges.length === 0) return undefined;
+
   return edges.map(edge => ({
     names: Array.isArray(edge.names) && edge.names.length > 0 ? edge.names : undefined,
     surface: edge.surface,
@@ -112,20 +120,24 @@ function toMatchedEdges(edges: ValhallaTraceEdge[] | undefined): SnapMatchedEdge
 // The ways a match ran along, deduplicated in path order.
 export function summarizeMatchedWayNames(edges: SnapMatchedEdge[] | undefined): string[] {
   const names: string[] = [];
+
   for (const edge of edges ?? []) {
     for (const name of edge.names ?? []) {
       if (name && name !== names[names.length - 1] && !names.includes(name)) names.push(name);
     }
   }
+
   return names;
 }
 
 // Distinct surfaces the match crossed, in path order.
 export function summarizeMatchedSurfaces(edges: SnapMatchedEdge[] | undefined): string[] {
   const surfaces: string[] = [];
+
   for (const edge of edges ?? []) {
     if (edge.surface && !surfaces.includes(edge.surface)) surfaces.push(edge.surface);
   }
+
   return surfaces;
 }
 
@@ -133,6 +145,7 @@ function toSnappedOrOriginal(matched: ValhallaMatchedPoint, original: Coordinate
   if (matched.type === 'unmatched' || !Number.isFinite(matched.lat) || !Number.isFinite(matched.lon)) {
     return { latitude: original.latitude, longitude: original.longitude, snapped: false };
   }
+
   return {
     latitude: matched.lat as number,
     longitude: matched.lon as number,
@@ -145,6 +158,7 @@ function toSnappedOrOriginal(matched: ValhallaMatchedPoint, original: Coordinate
 function decodeMatchedShape(encoded: string | undefined): Coordinate[] | undefined {
   if (!encoded) return undefined;
   const decoded = PolylineCodec.decode(encoded, 6);
+
   return decoded.length > 0 ? decoded : undefined;
 }
 
@@ -161,5 +175,6 @@ export function toMatchedGeometry(coordinates: unknown): Coordinate[] | undefine
   const points = positions
     .filter((position): position is [number, number] => Array.isArray(position) && Number.isFinite(position[0]) && Number.isFinite(position[1]))
     .map(([longitude, latitude]) => ({ latitude, longitude }));
+
   return points.length > 0 ? points : undefined;
 }

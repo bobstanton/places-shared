@@ -12,6 +12,8 @@ export function sharedRegistryMap<K, V>(key: string | symbol): Map<K, V> {
 
 export function nextSharedSequence(key: string | symbol): number {
   const next = ((host[key] as number | undefined) ?? 0) + 1;
+
   host[key] = next;
+
   return next;
 }

@@ -11,7 +11,8 @@ import type { TrackVisibilityResult } from '../track/TrackVisibilityResolver';
 import { getErrorMessage } from '../utils/Utilities';
 import { stableSignature, stableSignatureCached } from '../utils/StableSignature';
 import { logger as rootLogger } from '../utils/logger';
-import { mergeZoomRanges, readZoomRangeFromRecord, type ZoomRange } from '../ZoomVisibility';
+import { createPerformanceMonitor, type PerformanceMonitor } from '../utils/PerformanceMonitor';
+import { mergeZoomRanges, type ZoomRange } from '../ZoomVisibility';
 
 const logger = rootLogger.scope('MapRenderPlan');
 
@@ -22,6 +23,10 @@ export type MapCameraIntent =
   | { kind: 'fit-data'; padding?: number; maxZoom?: number }
   | { kind: 'explicit'; center?: [number, number]; zoom?: number }
   | { kind: 'preserve' };
+
+export function resolveFitDataCamera(camera: { padding?: number; maxZoom?: number } = {}): { kind: 'fit-data'; padding: number; maxZoom: number } {
+  return { kind: 'fit-data', padding: camera.padding ?? 30, maxZoom: camera.maxZoom ?? 14 };
+}
 
 export type RenderableKind =
   | 'marker'
@@ -56,6 +61,7 @@ export interface OverlayPreparationResult {
 }
 
 export interface MapRenderPlan {
+  dataState?: 'loading';
   surfaceKind: MapSurfaceKind;
   places: MapPlace[];
   overlays: Overlay[];
@@ -80,6 +86,8 @@ export interface MapRenderPlanDiff {
 export type MapIncrementalChangeKind = 'places' | 'overlays' | 'styles' | 'tools' | 'clustering' | 'terrain';
 
 export interface CreateMapRenderPlanOptions {
+  dataState?: 'loading';
+  perf?: PerformanceMonitor;
   surfaceKind: MapSurfaceKind;
   places: MapPlace[];
   config: ResolvedMapConfig;
@@ -95,28 +103,36 @@ export interface CreateMapRenderPlanOptions {
   inspectTrack?: MapRuntimeContext['inspectTrack'];
   trackLoader?: MapRuntimeContext['trackLoader'];
   mapTools?: MapRuntimeContext['mapTools'];
+  popupRenderers?: MapRuntimeContext['popupRenderers'];
   terrainDem?: MapRuntimeContext['terrainDem'];
   reliefDem?: MapRuntimeContext['reliefDem'];
   markerVisibilityHiddenIds?: readonly string[];
   popupDebug?: MapRuntimeContext['popupDebug'];
   prepareTimings?: MapRuntimeContext['prepareTimings'];
+  isStale?: MapRuntimeContext['isStale'];
 }
 
-export function resolveCameraIntent(config: ResolvedMapConfig, source: MapSourceContext = {}): MapCameraIntent {
+export type RememberedFitPolicy = 'use' | 'ignore';
+
+export function resolveCameraIntent(config: ResolvedMapConfig, source: MapSourceContext = {}, options: { rememberedFit?: RememberedFitPolicy } = {}): MapCameraIntent {
   const saved = MapStateManager.getSavedState(source);
-  if (saved) {
-    return { kind: 'explicit', center: [saved.center.lng, saved.center.lat], zoom: saved.zoom };
-  }
+  const explicitSaved = { kind: 'explicit', center: [saved?.center.lng, saved?.center.lat], zoom: saved?.zoom } as MapCameraIntent;
+
+  if (saved && !saved.automatic) return explicitSaved;
+  if (saved && options.rememberedFit !== 'ignore' && !config.initialCenter && config.initialZoom === undefined) return explicitSaved;
+
   if (config.initialCenter || config.initialZoom !== undefined) {
     return { kind: 'explicit', center: config.initialCenter ? [...config.initialCenter] : undefined, zoom: config.initialZoom };
   }
-  return { kind: 'fit-data' };
+
+  return resolveFitDataCamera();
 }
 
 export function prepareMapOverlays(places: MapPlace[], overlays: Overlay[] = [], generatedOverlays: Overlay[] = []): OverlayPreparationResult {
   const planPlaces = clonePlacesForPlan(places);
   const embedded = extractEmbeddedOverlays(planPlaces);
   const allOverlays = [...overlays, ...generatedOverlays, ...embedded.overlays];
+
   return {
     places: resolveRenderedPlaces(planPlaces, allOverlays),
     overlays: allOverlays,
@@ -125,15 +141,16 @@ export function prepareMapOverlays(places: MapPlace[], overlays: Overlay[] = [],
 }
 
 export function createMapRenderPlan(options: CreateMapRenderPlanOptions): MapRenderPlan {
-  const prepared = prepareMapOverlays(options.places, options.overlays ?? [], options.generatedOverlays ?? []);
+  const perf = options.perf ?? createPerformanceMonitor('render-plan', {}, { enabled: false });
+  const prepared = perf.measure('snapshot-overlays', () => prepareMapOverlays(options.places, options.overlays ?? [], options.generatedOverlays ?? []));
   const source = options.source;
-  const camera = options.camera;
-  const trackVisibility: TrackVisibilityResult = resolveTrackVisibility({
+  const camera = options.camera.kind === 'fit-data' ? resolveFitDataCamera(options.camera) : options.camera;
+  const trackVisibility: TrackVisibilityResult = perf.measure('resolve-track-visibility', () => resolveTrackVisibility({
     places: prepared.places,
     settings: options.config,
     clusteringEnabled: options.clusteringEnabled,
     overlays: prepared.overlays,
-  });
+  }));
   const runtime: MapRuntimeContext = {
     source,
     camera,
@@ -147,25 +164,28 @@ export function createMapRenderPlan(options: CreateMapRenderPlanOptions): MapRen
     inspectTrack: options.inspectTrack,
     trackLoader: options.trackLoader,
     mapTools: options.mapTools ?? [],
+    popupRenderers: options.popupRenderers ?? [],
     terrainDem: options.terrainDem,
     reliefDem: options.reliefDem,
     markerVisibilityHiddenIds: options.markerVisibilityHiddenIds,
     popupDebug: options.popupDebug,
     prepareTimings: options.prepareTimings,
+    isStale: options.isStale,
   };
 
-  const renderables = buildRenderables(prepared.places, prepared.overlays, options.config, trackVisibility);
-  const boundsSignature = createBoundsSignature(prepared.places, prepared.overlays);
-  const signature = renderSignature({
+  const renderables = perf.measure('renderable-signatures', () => buildRenderables(prepared.places, prepared.overlays, options.config, trackVisibility));
+  const boundsSignature = perf.measure('bounds-signature', () => createBoundsSignature(prepared.places, prepared.overlays));
+  const signature = perf.measure('plan-signature', () => renderSignature({
     surfaceKind: options.surfaceKind,
     renderables: renderables.map(renderable => [renderable.id, renderable.signature]),
     boundsSignature,
     clusteringEnabled: options.clusteringEnabled,
     settings: pickPlanSettings(options.config),
-  });
+  }));
 
   return {
     surfaceKind: options.surfaceKind,
+    dataState: options.dataState,
     places: prepared.places,
     overlays: prepared.overlays,
     config: options.config,
@@ -180,12 +200,19 @@ export function createMapRenderPlan(options: CreateMapRenderPlanOptions): MapRen
   };
 }
 
+export function withPlanCamera(plan: MapRenderPlan, camera: MapCameraIntent): MapRenderPlan {
+  camera = camera.kind === 'fit-data' ? resolveFitDataCamera(camera) : camera;
+
+  return { ...plan, camera, runtime: { ...plan.runtime, camera } };
+}
+
 export function getRenderPlanRenderableSignatures(plan: MapRenderPlan): Map<string, string> {
   return new Map(plan.renderables.map(renderable => [renderable.id, renderable.signature]));
 }
 
 export function hasRenderableSignatureChanges(previous: MapRenderPlan | null | undefined, next: MapRenderPlan): boolean {
   const diff = diffMapRenderPlans(previous, next);
+
   return diff.added.length > 0 || diff.removed.length > 0 || diff.updated.length > 0;
 }
 
@@ -206,10 +233,12 @@ export function diffMapRenderPlans(previous: MapRenderPlan | null | undefined, n
 
   for (const nextRenderable of next.renderables) {
     const previousRenderable = previousById.get(nextRenderable.id);
+
     if (!previousRenderable) {
       added.push(nextRenderable);
       continue;
     }
+
     previousById.delete(nextRenderable.id);
 
     if (previousRenderable.signature !== nextRenderable.signature) {
@@ -237,6 +266,7 @@ export function summarizeMapRenderPlanDiff(diff: MapRenderPlanDiff): Record<stri
   for (const renderable of diff.removed) bump(`removed:${renderable.kind}`);
   for (const entry of diff.updated) bump(`updated:${entry.next.kind}`);
   if (diff.unchanged.length > 0) bump('unchanged', diff.unchanged.length);
+
   return summary;
 }
 
@@ -258,6 +288,7 @@ export function classifyMapRenderPlanChanges(previous: MapRenderPlan, next: MapR
     || previous.config.clusteringEnabled !== next.config.clusteringEnabled
     || previous.config.clusterThreshold !== next.config.clusterThreshold
     || previous.config.clusterGeoJsonOverlays !== next.config.clusterGeoJsonOverlays
+    || previous.config.clusterStyle !== next.config.clusterStyle
   ) {
     changes.add('clustering');
   }
@@ -276,6 +307,7 @@ export function classifyMapRenderPlanChanges(previous: MapRenderPlan, next: MapR
     terrainDem: plan.runtime.terrainDem,
     reliefDem: plan.runtime.reliefDem,
   });
+
   if (stableSignature(terrainSettings(previous)) !== stableSignature(terrainSettings(next))) {
     changes.add('terrain');
   }
@@ -283,6 +315,7 @@ export function classifyMapRenderPlanChanges(previous: MapRenderPlan, next: MapR
   const presentationSettings = (plan: MapRenderPlan) => ({
     mapProvider: plan.config.mapProvider,
     showLabels: plan.config.showLabels,
+    showCurrentDevicePosition: plan.config.showCurrentDevicePosition,
     markerRenderer: plan.config.markerRenderer,
     trackColorBy: plan.config.trackColorBy,
     trackOutline: plan.config.trackOutline,
@@ -291,6 +324,7 @@ export function classifyMapRenderPlanChanges(previous: MapRenderPlan, next: MapR
     style: plan.config.style,
     iconStyles: plan.config.iconStyles,
     labelStyles: plan.config.labelStyles,
+    popup: plan.config.popup,
     poiDiscovery: plan.config.poiDiscovery,
     poiFilterPatterns: plan.config.poiFilterPatterns,
     pitch: plan.config.pitch,
@@ -298,9 +332,11 @@ export function classifyMapRenderPlanChanges(previous: MapRenderPlan, next: MapR
     heatmapColorScheme: plan.config.heatmapColorScheme,
     trackBuilder: plan.config.trackBuilder,
   });
+
   if (stableSignature(presentationSettings(previous)) !== stableSignature(presentationSettings(next))) {
     changes.add('styles');
   }
+
   if (stableSignature(previous.config.tools ?? {}) !== stableSignature(next.config.tools ?? {})) {
     changes.add('tools');
   }
@@ -310,6 +346,7 @@ export function classifyMapRenderPlanChanges(previous: MapRenderPlan, next: MapR
 
 export function hasRenderableChanges(diff: MapRenderPlanDiff | null | undefined, predicate: (renderable: MapRenderable) => boolean): boolean {
   if (!diff) return true;
+
   return diff.added.some(predicate)
     || diff.removed.some(predicate)
     || diff.updated.some(entry => predicate(entry.next) || predicate(entry.previous));
@@ -329,6 +366,7 @@ export function resolveRenderedPlaces(places: MapPlace[], overlays: Overlay[]): 
   }
 
   const centerCoordinate = extractCenterCoordinateFromOverlays(overlays);
+
   return centerCoordinate ? [createHiddenCenterMarker(centerCoordinate.latitude, centerCoordinate.longitude)] : places;
 }
 
@@ -354,7 +392,8 @@ export function extractEmbeddedOverlays(places: MapPlace[]): { overlays: Overlay
         type: 'geojson',
         source: place.filePath,
         geojson: place.overlay.geojson,
-        zoom: readZoomRangeFromRecord(place.metadata, 'overlay'),
+        zoom: place.overlayZoom,
+        popup: place.settings?.popup,
       });
       continue;
     }
@@ -366,17 +405,21 @@ export function extractEmbeddedOverlays(places: MapPlace[]): { overlays: Overlay
     try {
       const overlay = clonePlaceOverlayForMutation(place);
       const geojson = overlay?.geojson;
+
       if (!geojson) continue;
 
       if (geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
         for (const feature of geojson.features) {
           if (!feature.properties) feature.properties = {};
+
           if (!feature.properties.stroke) {
             feature.properties.stroke = place.trackColor || TRACK_STYLE_DEFAULTS.color;
           }
+
           if (!feature.properties['stroke-width']) {
             feature.properties['stroke-width'] = place.trackWeight ?? TRACK_STYLE_DEFAULTS.weight;
           }
+
           if (!feature.properties['stroke-opacity']) {
             feature.properties['stroke-opacity'] = place.trackOpacity ?? TRACK_STYLE_DEFAULTS.opacity;
           }
@@ -387,10 +430,12 @@ export function extractEmbeddedOverlays(places: MapPlace[]): { overlays: Overlay
         type: 'geojson',
         source: place.filePath,
         geojson,
-        zoom: readZoomRangeFromRecord(place.metadata, 'overlay'),
+        zoom: place.overlayZoom,
+        popup: place.settings?.popup,
       });
     } catch (error) {
       const errorMessage = getErrorMessage(error);
+
       logger.warn(`Failed to extract embedded overlay data from ${place.filePath}:`, error);
       errors.push({ path: place.filePath, error: errorMessage });
     }
@@ -400,22 +445,26 @@ export function extractEmbeddedOverlays(places: MapPlace[]): { overlays: Overlay
 }
 
 function clonePlacesForPlan(places: MapPlace[]): MapPlace[] {
-  return places.map(place => ({ ...place }));
+  return places.map(place => place.overlay ? { ...place } : place);
 }
 
 function clonePlaceOverlayForMutation(place: MapPlace): MapPlaceOverlay | undefined {
+  if (!place.overlay) return undefined;
   place.overlay = clonePlaceOverlay(place.overlay);
+
   return place.overlay;
 }
 
 function clonePlaceOverlay(overlay: MapPlaceOverlay | undefined): MapPlaceOverlay | undefined {
   if (!overlay) return undefined;
+
   return {
     ...overlay,
     geojson: cloneJsonCompatibleValue(overlay.geojson),
-    track: overlay.track ? {
+    track: overlay.track === null ? null : overlay.track ? {
       ...overlay.track,
       elevation: overlay.track.elevation ? [...overlay.track.elevation] : undefined,
+      time: overlay.track.time ? [...overlay.track.time] : undefined,
       waypoints: overlay.track.waypoints ? overlay.track.waypoints.map(waypoint => ({ ...waypoint })) : undefined,
     } : undefined,
     style: overlay.style ? { ...overlay.style } : undefined,
@@ -427,14 +476,30 @@ function cloneJsonCompatibleValue<T>(value: T): T {
   if (typeof structuredClone === 'function') {
     return structuredClone(value);
   }
+
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+const labelSignatures = new WeakMap<MapPlace, string>();
+
+function labelRenderSignature(place: MapPlace, placeId: string): string {
+  let signature = labelSignatures.get(place);
+
+  if (signature === undefined) {
+    signature = renderSignature({ placeId, labelStyle: place.labelStyle, name: place.name, zoom: place.labelStyle?.zoom ?? place.labelZoom });
+    labelSignatures.set(place, signature);
+  }
+
+  return signature;
 }
 
 function buildRenderables(places: MapPlace[], overlays: Overlay[], config: ResolvedMapConfig, trackVisibility: TrackVisibilityResult): MapRenderable[] {
   const renderables: MapRenderable[] = [];
 
   for (const place of places) {
+    if (place.markerEnabled === false) continue;
     const placeId = getPlaceId(place);
+
     renderables.push({
       id: `marker:${placeId}`,
       kind: 'marker',
@@ -452,7 +517,7 @@ function buildRenderables(places: MapPlace[], overlays: Overlay[], config: Resol
         owner: 'place',
         sourcePath: place.filePath,
         layerIds: [],
-        signature: renderSignature({ placeId, labelStyle: place.labelStyle, name: place.name, zoom: place.labelStyle?.zoom ?? place.labelZoom }),
+        signature: labelRenderSignature(place, placeId),
         visibility: { data: true, cluster: 'hide-when-clustered', zoom: place.labelStyle?.zoom ?? place.labelZoom },
       });
     }
@@ -460,6 +525,7 @@ function buildRenderables(places: MapPlace[], overlays: Overlay[], config: Resol
 
   for (const state of trackVisibility.placeStates) {
     const placeId = state.placeId;
+
     renderables.push({
       id: `note-track:${placeId}`,
       kind: 'note-track',
@@ -479,8 +545,10 @@ function buildRenderables(places: MapPlace[], overlays: Overlay[], config: Resol
 
   overlays.forEach((overlay, index) => {
     const isEmbedded = overlay.source.endsWith('.md');
+
     if (isGeoJSONOverlay(overlay)) {
       const sourceId = `geojson-overlay-${index}`;
+
       renderables.push({
         id: `geojson-overlay:${index}:${overlay.source}`,
         kind: 'geojson-overlay',
@@ -496,7 +564,7 @@ function buildRenderables(places: MapPlace[], overlays: Overlay[], config: Resol
           `${sourceId}-route-label`,
           `${sourceId}-route-endpoint-label`,
         ],
-        signature: renderSignature({ source: overlay.source, geojson: overlay.geojson ? stableSignatureCached(overlay.geojson) : '', zoom: overlay.zoom, labelTemplate: overlay.labelTemplate, waypointLabelTemplate: overlay.waypointLabelTemplate, style: overlay.style, hoverStyle: overlay.hoverStyle }),
+        signature: renderSignature({ source: overlay.source, geojson: overlay.geojson ? stableSignatureCached(overlay.geojson) : '', zoom: overlay.zoom, labelTemplate: overlay.labelTemplate, waypointLabelTemplate: overlay.waypointLabelTemplate, popup: overlay.popup, style: overlay.style, hoverStyle: overlay.hoverStyle }),
         visibility: {
           data: true,
           cluster: isEmbedded ? 'hide-when-clustered' : 'always',
@@ -520,7 +588,6 @@ function buildRenderables(places: MapPlace[], overlays: Overlay[], config: Resol
         kind: 'vector-tile-overlay',
         owner: 'block',
         sourcePath: overlay.source,
-        // Entries with an identical source definition share one sourceId (one GL source); layer ids stay per-index.
         sourceId: createVectorTileOverlaySourceId(overlay),
         layerIds: [`vector-tile-overlay-layer-${index}`],
         signature: renderSignature(overlay),
@@ -538,6 +605,7 @@ function pickPlanSettings(settings: ResolvedMapConfig): Record<string, unknown> 
     width: settings.width,
     style: settings.style,
     showLabels: settings.showLabels,
+    showCurrentDevicePosition: settings.showCurrentDevicePosition,
     trackColorBy: settings.trackColorBy,
     trackOutline: settings.trackOutline,
     trackDefaultVisibility: settings.trackDefaultVisibility,
@@ -547,6 +615,7 @@ function pickPlanSettings(settings: ResolvedMapConfig): Record<string, unknown> 
     clusterThreshold: settings.clusterThreshold,
     clusterGeoJsonOverlays: settings.clusterGeoJsonOverlays,
     trackBuilder: settings.trackBuilder,
+    popup: settings.popup,
     tools: settings.tools,
     pitch: settings.pitch,
   };
@@ -564,8 +633,10 @@ function createHiddenCenterMarker(lat: number, lng: number): MapPlace {
 
 function extractCenterCoordinateFromOverlays(overlays: Overlay[]): { latitude: number; longitude: number } | null {
   const imageOverlay = overlays.find(isImageOverlay);
+
   if (imageOverlay) {
     const bounds = new PlacesBoundingBox();
+
     if (imageOverlay.bounds) {
       bounds.update(imageOverlay.bounds.swLat, imageOverlay.bounds.swLng);
       bounds.update(imageOverlay.bounds.neLat, imageOverlay.bounds.neLng);
@@ -575,23 +646,29 @@ function extractCenterCoordinateFromOverlays(overlays: Overlay[]): { latitude: n
       bounds.update(imageOverlay.corners.seLat, imageOverlay.corners.seLng);
       bounds.update(imageOverlay.corners.swLat, imageOverlay.corners.swLng);
     }
+
     if (bounds.isValid()) {
       const [lat, lng] = bounds.getLatLngCenter();
+
       return { latitude: lat, longitude: lng };
     }
   }
 
   for (const overlay of overlays.filter(isGeoJSONOverlay)) {
     const bounds = PlacesBoundingBox.fromGeoJSON(overlay.geojson);
+
     if (bounds.isValid()) {
       const [lng, lat] = bounds.getLngLatCenter();
+
       return { latitude: lat, longitude: lng };
     }
   }
 
   const vectorTileOverlay = overlays.find(isVectorTileOverlay);
+
   if (vectorTileOverlay?.bounds) {
     const [west, south, east, north] = vectorTileOverlay.bounds;
+
     return {
       latitude: (south + north) / 2,
       longitude: (west + east) / 2,
@@ -601,27 +678,20 @@ function extractCenterCoordinateFromOverlays(overlays: Overlay[]): { latitude: n
   return null;
 }
 
-const geoJsonBoundsCache = new WeakMap<object, PlacesBoundingBox>();
-function getGeoJsonBoundsCached(geojson: GeoJSON.GeoJSON | undefined): PlacesBoundingBox {
-  if (!geojson) return new PlacesBoundingBox();
-  let bounds = geoJsonBoundsCache.get(geojson);
-  if (bounds === undefined) {
-    bounds = PlacesBoundingBox.fromGeoJSON(geojson);
-    geoJsonBoundsCache.set(geojson, bounds);
-  }
-  return bounds;
-}
-
 function createBoundsSignature(places: MapPlace[], overlays: Overlay[]): string {
   const bounds = new PlacesBoundingBox();
+
   for (const place of places) {
     bounds.update(place.latitude, place.longitude);
   }
+
   for (const overlay of overlays) {
     if (isGeoJSONOverlay(overlay)) {
-      const overlayBounds = getGeoJsonBoundsCached(overlay.geojson);
+      const overlayBounds = PlacesBoundingBox.fromImmutableGeoJSON(overlay.geojson);
+
       if (overlayBounds.isValid()) {
         const [[minLng, minLat], [maxLng, maxLat]] = overlayBounds.getLngLatBounds();
+
         bounds.update(minLat, minLng);
         bounds.update(maxLat, maxLng);
       }
@@ -637,6 +707,7 @@ function createBoundsSignature(places: MapPlace[], overlays: Overlay[]): string 
       }
     } else if (isVectorTileOverlay(overlay) && overlay.bounds) {
       const [west, south, east, north] = overlay.bounds;
+
       bounds.update(south, west);
       bounds.update(north, east);
     }
@@ -648,6 +719,7 @@ function createBoundsSignature(places: MapPlace[], overlays: Overlay[]): string 
 function isRouteOverlayGeoJson(geojson: GeoJSON.FeatureCollection): boolean {
   return geojson.features.some((feature) => {
     const properties = feature.properties ?? {};
+
     return Boolean(
       properties.route_label ||
       properties.route_label_point ||

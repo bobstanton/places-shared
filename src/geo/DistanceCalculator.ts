@@ -7,17 +7,24 @@ export interface Coordinate {
   longitude: number;
 }
 
+export interface CoordinateWithElevation extends Coordinate {
+  elevation?: number;
+}
+
 export class DistanceCalculator {
-  private static readonly EARTH_RADIUS_KM = 6371;
+  private static readonly EARTH_RADIUS_KM = 6371.0088;
 
   static calculatePolylineDistanceKm(coordinates: Coordinate[]): Kilometers {
     if (coordinates.length < 2) return km(0);
 
     let totalDistance = 0;
+
     for (let i = 1; i < coordinates.length; i++) {
       const segmentDistance = this.calculateDistanceBetween(coordinates[i - 1], coordinates[i]);
+
       totalDistance += segmentDistance as number;
     }
+
     return km(totalDistance);
   }
 
@@ -106,6 +113,7 @@ export class DistanceCalculator {
     const t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lenSq));
     const cx = ax + t * dx;
     const cy = ay + t * dy;
+
     return meters(Math.sqrt(cx * cx + cy * cy));
   }
 
@@ -117,6 +125,7 @@ export class DistanceCalculator {
     let currRow = new Array<number>(m).fill(Infinity);
 
     prevRow[0] = this.fastDistanceDegrees(track1[0], track2[0]);
+
     for (let j = 1; j < m; j++) {
       prevRow[j] = Math.max(prevRow[j-1], this.fastDistanceDegrees(track1[0], track2[j]));
     }
@@ -126,6 +135,7 @@ export class DistanceCalculator {
 
       for (let j = 1; j < m; j++) {
         const distance = this.fastDistanceDegrees(track1[i], track2[j]);
+
         currRow[j] = Math.max(
           Math.min(prevRow[j], prevRow[j-1], currRow[j-1]),
           distance
@@ -141,7 +151,7 @@ export class DistanceCalculator {
 
   static discreteFrechetSimilarity(track1: Coordinate[], track2: Coordinate[], threshold: number = 0.01): number {
     const maxDistance = this.discreteFrechetDistance(track1, track2);
+
     return Math.max(0, 1 - (maxDistance / threshold));
   }
 }
-

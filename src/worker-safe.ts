@@ -1,8 +1,3 @@
-// Do NOT add imports from files that use 'obsidian' (directly or transitively):
-// - services/IMapBlockProcessor.ts
-// - services/IPlacePluginExtension.ts
-// - map/MapContextMenu.ts
-
 export type { Coordinate } from './geo/DistanceCalculator';
 export { DistanceCalculator, DEG_TO_RAD } from './geo/DistanceCalculator';
 
@@ -24,9 +19,9 @@ export type { GradeColoredSegment } from './track/SegmentCreator';
 export { TrackRenderer, DEFAULT_TRACK_STYLE } from './track/TrackRenderer';
 export type { TrackStyle, TrackRenderResult } from './track/TrackRenderer';
 
-export { createSegmentOverlayPlace, createBoundsAnchors } from './track/TrackVisibilityResolver';
+export { createSegmentOverlayPlace, createBoundsAnchors, parseTrackLineStyle, parseDashArray, dashArrayToPixels } from './track/TrackVisibilityResolver';
 export type { SegmentOverlayOptions } from './track/TrackVisibilityResolver';
 
-export { getErrorMessage, numericRange, sleep, clamp } from './utils/Utilities';
+export { getErrorMessage, numericRange, scalarToString, sleep, clamp, getFileNameWithoutExtension } from './utils/Utilities';
 
 export * from './ZoomVisibility';

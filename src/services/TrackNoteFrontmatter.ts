@@ -1,16 +1,6 @@
 import type { Coordinate } from '../geo/DistanceCalculator';
 import { formatDisplayCoordinate, Utilities } from '../utils/Utilities';
-import {
-  formatKmInSystem,
-  formatKphInSystem,
-  formatMetersInSystem,
-  formatMinPerKmInSystem,
-  type Kilometers,
-  type KilometersPerHour,
-  type Meters,
-  type MinutesPerKilometer,
-  type UnitsSystem,
-} from '../Units';
+import { formatKmInSystem, formatKphInSystem, formatMetersInSystem, formatMinPerKmInSystem, type Kilometers, type KilometersPerHour, type Meters, type MinutesPerKilometer, type UnitsSystem } from '../Units';
 
 // Everything a track note records about its track, in storage units. Every
 // writer, whichever bundle it runs in, builds track frontmatter through this
@@ -24,7 +14,7 @@ export interface TrackNoteFrontmatterInput {
   readonly description?: string;
   // How many source tracks were merged into this note. Above one, the
   // per-track name and description describe only one of them, and both are
-  // suppressed in favour of the count.
+  // suppressed in favor of the count.
   readonly featureCount?: number;
   readonly durationSeconds?: number;
   readonly movingTimeSeconds?: number;
@@ -58,6 +48,7 @@ export function buildTrackNoteFrontmatter(input: TrackNoteFrontmatterInput, unit
   if (input.totalPoints !== undefined) frontmatter['Total Points'] = input.totalPoints;
 
   const multiTrack = (input.featureCount ?? 0) > 1;
+
   if (multiTrack) {
     frontmatter['Feature Count'] = input.featureCount;
   } else {
@@ -80,12 +71,15 @@ export function buildTrackNoteFrontmatter(input: TrackNoteFrontmatterInput, unit
   if (input.elevationGainMeters !== undefined && Number(input.elevationGainMeters) > 0) {
     frontmatter['Elevation Gain'] = formatMetersInSystem(input.elevationGainMeters, units);
   }
+
   if (input.elevationLossMeters !== undefined && Number(input.elevationLossMeters) > 0) {
     frontmatter['Elevation Loss'] = formatMetersInSystem(input.elevationLossMeters, units);
   }
+
   if (input.minElevationMeters !== undefined) {
     frontmatter['Min Elevation'] = formatMetersInSystem(input.minElevationMeters, units);
   }
+
   if (input.maxElevationMeters !== undefined) {
     frontmatter['Max Elevation'] = formatMetersInSystem(input.maxElevationMeters, units);
   }
