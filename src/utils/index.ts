@@ -1,27 +1,21 @@
-export * from './Utilities';
-export * from './CrossBundleRegistry';
-export * from './FileUtils';
-export * from './StringCompressor';
-export * from './HttpLogging';
 export * from './CacheTypes';
-export * from './logger';
+export * from './CrossBundleRegistry';
+export * from './CooperativeWork';
+export * from './Dom';
+export * from './HttpLogging';
 export * from './PerformanceMonitor';
 export * from './StableSignature';
-export * from './RuntimeDebug';
-export * from './GlobalErrorCapture';
+export * from './StringCompressor';
+export * from './Utilities';
 export * from './ValueGuards';
+export * from './VaultPath';
+export * from './logger';
+export { PlaceholderResolver } from 'placeholder-resolver/dist/PlaceholderResolver.js';
+export { PlaceholderError } from 'placeholder-resolver/dist/types.js';
+export { createHelpers, mergeHelpers } from 'placeholder-resolver/dist/helpers.js';
 
-export {
-  PlaceholderResolver,
-  PlaceholderError,
-  createHelpers,
-  mergeHelpers,
-} from 'placeholder-resolver';
+export type { ContextProvider, ResolverOptions, ResolveResult, ResolveDiagnostic } from 'placeholder-resolver/dist/types.js';
+export type { Helpers } from 'placeholder-resolver/dist/helpers.js';
 
-export type {
-  ContextProvider,
-  ResolverOptions,
-  ResolveResult,
-  ResolveDiagnostic,
-  Helpers,
-} from 'placeholder-resolver';
+export * from './RuntimeDebug';
+export * from './Clipboard';

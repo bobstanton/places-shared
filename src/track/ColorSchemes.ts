@@ -1,5 +1,6 @@
 import type { Meters } from '../Units';
 import { clamp } from '../utils/Utilities';
+import { SEQUENTIAL_COLOR_PRESETS } from './SequentialColorPresets';
 
 export interface GradeColorBand {
   maxGrade: number;
@@ -37,13 +38,13 @@ export const ELEVATION_COLOR_STOPS: ElevationColorStop[] = [
 
 export function getElevationGradientCSS(): string {
   const colorStrings = ELEVATION_COLOR_STOPS.map(stop => `rgb(${stop.rgb.join(', ')})`);
+
   return `linear-gradient(to right, ${colorStrings.join(', ')})`;
 }
 
-// Named heatmap gradients. Any scheme that is not one of these names is parsed
-// as a custom comma/newline-separated list of hex colors. The resolver
-// interpolates between however many stops are supplied.
 export const HEATMAP_COLOR_PRESETS: Record<string, string[]> = {
+  ...SEQUENTIAL_COLOR_PRESETS,
+  pastel: ['#9147d4', '#a060dc', '#7e83e3', '#62bde0', '#69d6b0', '#a4de91', '#e5e985', '#ffe080', '#ffc18d', '#f6a0ca', '#ee82bd'],
   'yellow-to-red': ['#FFFFCC', '#FFEDA0', '#FED976', '#FEB24C', '#FD8D3C', '#FC4E2A', '#E31A1C', '#FF0000', '#DD0000', '#AA0000'],
   'blues': ['#F7FBFF', '#DEEBF7', '#C6DBEF', '#9ECAE1', '#6BAED6', '#4292C6', '#2171B5', '#08519C', '#08306B', '#041A3B'],
   'heat': ['#2166ac', '#67a9cf', '#d1e5f0', '#fddbc7', '#ef8a62', '#b2182b'],
@@ -51,6 +52,7 @@ export const HEATMAP_COLOR_PRESETS: Record<string, string[]> = {
 };
 
 export const DEFAULT_HEATMAP_COLOR_SCHEME = 'yellow-to-red';
+export const DEFAULT_DENSITY_COLOR_SCHEME = 'plasma';
 
 // Sequential ramp for speed and pace, normalized against the track's own
 // range: a walk and a drive each use the full ramp.
@@ -65,6 +67,7 @@ export const SPEED_COLOR_STOPS: ElevationColorStop[] = [
 export class ColorSchemes {
   static getElevationColor(elevation: Meters, minElevation: Meters, maxElevation: Meters): string {
     const range = maxElevation - minElevation;
+
     if (range === 0) return '#4A90E2';
 
     const normalized = (elevation - minElevation) / range;
@@ -84,13 +87,15 @@ export class ColorSchemes {
     }
 
     const lastColor = ELEVATION_COLOR_STOPS[ELEVATION_COLOR_STOPS.length - 1].rgb;
+
     return `rgb(${lastColor[0]}, ${lastColor[1]}, ${lastColor[2]})`;
   }
 
-  // Colour for a value within a track's own min/max range. Pace inverts the
+  // Color for a value within a track's own min/max range. Pace inverts the
   // ramp, keeping the fast end red in both modes - a low pace number is fast.
   static getSpeedColor(value: number, minValue: number, maxValue: number, invert = false): string {
     const range = maxValue - minValue;
+
     if (!Number.isFinite(range) || range <= 0) return `rgb(${SPEED_COLOR_STOPS[2].rgb.join(', ')})`;
 
     const raw = (value - minValue) / range;
@@ -102,11 +107,13 @@ export class ColorSchemes {
         const end = SPEED_COLOR_STOPS[i];
         const factor = (normalized - start.position) / (end.position - start.position);
         const channel = (index: number) => Math.round(start.rgb[index] + (end.rgb[index] - start.rgb[index]) * factor);
+
         return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
       }
     }
 
     const last = SPEED_COLOR_STOPS[SPEED_COLOR_STOPS.length - 1].rgb;
+
     return `rgb(${last[0]}, ${last[1]}, ${last[2]})`;
   }
 
@@ -116,16 +123,21 @@ export class ColorSchemes {
         return band.color;
       }
     }
+
     return GRADE_COLOR_BANDS[GRADE_COLOR_BANDS.length - 1].color;
   }
 
   static resolveHeatmapColorStops(colorScheme: string | undefined): string[] {
     const key = (colorScheme ?? '').trim().toLowerCase();
+
+    if (key === 'soft') return HEATMAP_COLOR_PRESETS.pastel;
     if (HEATMAP_COLOR_PRESETS[key]) return HEATMAP_COLOR_PRESETS[key];
 
     const custom = this.parseHeatmapColorStops(colorScheme ?? '');
+
     if (custom.length >= 2) return custom;
     if (custom.length === 1) return [custom[0], custom[0]];
+
     return HEATMAP_COLOR_PRESETS[DEFAULT_HEATMAP_COLOR_SCHEME];
   }
 
@@ -138,13 +150,16 @@ export class ColorSchemes {
 
   private static normalizeHexColor(value: string): string | null {
     const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(value.trim());
+
     if (!match) return null;
     const hex = match[1].length === 3 ? match[1].split('').map((c) => c + c).join('') : match[1];
+
     return `#${hex.toLowerCase()}`;
   }
 
   private static hexToRgb(hex: string): [number, number, number] {
     const value = parseInt(hex.replace('#', ''), 16);
+
     return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
   }
 
@@ -155,6 +170,7 @@ export class ColorSchemes {
   // Interpolate a normalized 0-1 position across an ordered list of hex stops.
   static interpolateHeatmapStops(normalized: number, stops: string[]): string {
     const clamped = clamp(normalized, 0, 1);
+
     if (stops.length === 1) return stops[0];
 
     const numSegments = stops.length - 1;
@@ -163,6 +179,7 @@ export class ColorSchemes {
 
     const start = this.hexToRgb(stops[segmentIndex]);
     const end = this.hexToRgb(stops[segmentIndex + 1]);
+
     return this.rgbToHex(
       Math.round(start[0] + (end[0] - start[0]) * ratio),
       Math.round(start[1] + (end[1] - start[1]) * ratio),
@@ -174,6 +191,10 @@ export class ColorSchemes {
     return this.interpolateHeatmapStops(normalizedWeight, this.resolveHeatmapColorStops(colorScheme));
   }
 
+  static getHeatmapColorRgb(normalizedWeight: number, colorScheme: string): [number, number, number] {
+    return this.hexToRgb(this.getHeatmapColor(normalizedWeight, colorScheme));
+  }
+
   // CSS gradient for legends, evenly spaced across the resolved stops.
   static getHeatmapGradientCSS(colorScheme: string): string {
     return `linear-gradient(to right, ${this.resolveHeatmapColorStops(colorScheme).join(', ')})`;
@@ -182,28 +203,14 @@ export class ColorSchemes {
   // CSS gradient for opacity-stacking legends: one peak color, increasing opacity.
   static getHeatmapOpacityGradientCSS(colorScheme: string): string {
     const [r, g, b] = this.hexToRgb(this.getHeatmapCircleColor(colorScheme));
+
     return `linear-gradient(to right, rgba(${r}, ${g}, ${b}, 0.08), rgba(${r}, ${g}, ${b}, 1))`;
   }
 
   // Single representative (peak) color - used for opacity-stacking and circle fills.
   static getHeatmapCircleColor(colorScheme: string): string {
     const stops = this.resolveHeatmapColorStops(colorScheme);
+
     return stops[stops.length - 1];
-  }
-
-  // MapLibre GL `heatmap-color` interpolation expression built from the resolved
-  // stops, evenly spaced. The lowest density renders the first stop fully
-  // transparent, fading sparse areas out.
-  static getHeatmapMapGLExpression(colorScheme: string): unknown[] {
-    const stops = this.resolveHeatmapColorStops(colorScheme);
-    const expression: unknown[] = ['interpolate', ['linear'], ['heatmap-density']];
-
-    for (let index = 0; index < stops.length; index++) {
-      const position = index / (stops.length - 1);
-      const [r, g, b] = this.hexToRgb(stops[index]);
-      expression.push(position, index === 0 ? `rgba(${r}, ${g}, ${b}, 0)` : `rgb(${r}, ${g}, ${b})`);
-    }
-
-    return expression;
   }
 }

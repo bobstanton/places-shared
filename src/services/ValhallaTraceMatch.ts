@@ -32,9 +32,11 @@ export function downsampleTrackForTrace(coordinates: Coordinate[], maxPoints = V
 
   const sampled: Coordinate[] = [];
   const step = (coordinates.length - 1) / (maxPoints - 1);
+
   for (let i = 0; i < maxPoints; i++) {
     sampled.push(coordinates[Math.round(i * step)]);
   }
+
   return sampled;
 }
 
@@ -62,13 +64,16 @@ export function aggregateTraceEdges(edges: ValhallaTraceEdge[], provider: string
 
   for (const edge of edges) {
     const lengthKm = edge.length ?? 0;
+
     totalKm += lengthKm;
 
     const name = edge.names?.[0]?.trim();
+
     if (!name) continue;
 
     const key = name.toLowerCase();
     let acc = byName.get(key);
+
     if (!acc) {
       acc = { name, lengthKm: 0, longestEdgeKm: -1, segments: [] };
       byName.set(key, acc);
@@ -76,23 +81,28 @@ export function aggregateTraceEdges(edges: ValhallaTraceEdge[], provider: string
     }
 
     acc.lengthKm += lengthKm;
+
     if (edge.begin_shape_index !== undefined && (acc.firstShapeIndex === undefined || edge.begin_shape_index < acc.firstShapeIndex)) {
       acc.firstShapeIndex = edge.begin_shape_index;
     }
+
     if (lengthKm > acc.longestEdgeKm) {
       acc.longestEdgeKm = lengthKm;
       acc.use = edge.use;
       acc.surface = edge.surface;
       acc.roadClass = edge.road_class;
     }
+
     const begin = edge.begin_shape_index;
     const end = edge.end_shape_index;
+
     if (shapeCoords && begin !== undefined && end !== undefined && begin >= 0 && end > begin && end < shapeCoords.length) {
       if (acc.lastEndIndex === begin && acc.segments.length > 0) {
         acc.segments[acc.segments.length - 1].push(...shapeCoords.slice(begin + 1, end + 1));
       } else {
         acc.segments.push(shapeCoords.slice(begin, end + 1));
       }
+
       acc.lastEndIndex = end;
     }
   }
@@ -102,6 +112,7 @@ export function aggregateTraceEdges(edges: ValhallaTraceEdge[], provider: string
   const fractionDenominator = shapeCoords && shapeCoords.length > 1 ? shapeCoords.length - 1 : shapePointCount && shapePointCount > 1 ? shapePointCount - 1 : undefined;
   const ways: MatchedWay[] = order.map(key => {
     const acc = byName.get(key)!;
+
     return {
       name: acc.name,
       lengthKm: km(acc.lengthKm),
@@ -122,15 +133,19 @@ export function aggregateTraceEdges(edges: ValhallaTraceEdge[], provider: string
 // surfaces the server's own error text.
 export function valhallaErrorFromBody(providerLabel: string, status: number, body: string): Error {
   let detail = body;
+
   try {
     // Valhalla errors are JSON: {"error_code":444,"error":"...","status_code":400,...}
     const parsed = JSON.parse(body) as { error?: string; error_code?: number };
+
     if (parsed.error_code !== undefined && VALHALLA_MATCH_FAILURE_CODES.has(parsed.error_code)) {
       return new Error("Track has sections away from mapped paths and could not be matched; way names are unavailable.");
     }
+
     detail = parsed.error ?? body;
   } catch {
     // Not JSON - keep the raw body
   }
+
   return new Error(`${providerLabel} trace_attributes failed (${status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
 }

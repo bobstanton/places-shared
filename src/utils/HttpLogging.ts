@@ -1,4 +1,20 @@
-import { requestUrl, type RequestUrlParam, type RequestUrlResponse } from "obsidian";
+export interface RequestUrlParam {
+  url: string;
+  method?: string;
+  contentType?: string;
+  body?: string | ArrayBuffer;
+  headers?: Record<string, string>;
+  throw?: boolean;
+}
+
+export interface RequestUrlResponse {
+  status: number;
+  headers: Record<string, string>;
+  arrayBuffer: ArrayBuffer;
+  json: unknown;
+  text: string;
+}
+import { sharedRegistryValue } from "./CrossBundleRegistry";
 import { logger as rootLogger } from "./logger";
 
 const logger = rootLogger.scope("HTTP");
@@ -14,13 +30,31 @@ export function configureRequestLogging(enabled: boolean): void {
   requestLoggingEnabled = enabled;
 }
 
-// Drop-in replacement for Obsidian's requestUrl. Requests made through
-// requestUrl run in Electron's main process and never appear in the DevTools
-// network tab; with developer mode enabled this logs method, URL (credentials
-// redacted), status, and duration to the console instead.
+export type UrlRequester = (params: RequestUrlParam | string) => Promise<RequestUrlResponse>;
+
+const REQUESTER_KEY = Symbol.for("places.http.requester");
+
+interface RequesterState {
+  requester: UrlRequester | null;
+}
+
+const requesterState = sharedRegistryValue<RequesterState>(REQUESTER_KEY, () => ({ requester: null }));
+
+export function configureUrlRequester(next: UrlRequester): void {
+  requesterState.requester = next;
+}
+
+function requester(params: RequestUrlParam | string): Promise<RequestUrlResponse> {
+  if (!requesterState.requester) {
+    throw new Error("No HTTP transport registered: call configureUrlRequester at startup");
+  }
+
+  return requesterState.requester(params);
+}
+
 export async function loggedRequestUrl(params: RequestUrlParam | string): Promise<RequestUrlResponse> {
   if (!requestLoggingEnabled) {
-    return requestUrl(params);
+    return requester(params);
   }
 
   const url = typeof params === "string" ? params : params.url;
@@ -28,25 +62,19 @@ export async function loggedRequestUrl(params: RequestUrlParam | string): Promis
   const started = performance.now();
 
   try {
-    const response = await requestUrl(params);
+    const response = await requester(params);
+
     logger.info(`${method} ${redactUrl(url)} -> ${response.status} (${Math.round(performance.now() - started)}ms)`);
+
     return response;
   } catch (error) {
     logger.warn(`${method} ${redactUrl(url)} -> threw (${Math.round(performance.now() - started)}ms)`, error);
+
     throw error;
   }
 }
 
-function redactUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    for (const param of [...parsed.searchParams.keys()]) {
-      if (SENSITIVE_QUERY_PARAMS.includes(param.toLowerCase())) {
-        parsed.searchParams.set(param, "REDACTED");
-      }
-    }
-    return parsed.href;
-  } catch {
-    return url;
-  }
+export function redactUrl(url: string): string {
+  return url.replace(/([?&])([^=&#]+)=([^&#]*)/g, (match, separator: string, key: string) =>
+    SENSITIVE_QUERY_PARAMS.includes(key.toLowerCase()) ? `${separator}${key}=REDACTED` : match);
 }

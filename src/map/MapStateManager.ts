@@ -4,6 +4,7 @@ import { sharedRegistryMap } from "../utils/CrossBundleRegistry";
 export interface MapState {
   zoom: number;
   center: { lat: number; lng: number };
+  automatic?: true;
 }
 
 const MAP_STATES_KEY = Symbol.for("places.map.viewport-states");
@@ -16,13 +17,17 @@ export class MapStateManager {
   static getStateKey(source: MapSourceContext): string | null {
     const sourcePath = source.path;
     const lineStart = source.lineStart;
+
     if (!sourcePath || lineStart === undefined) return null;
+
     return `${sourcePath}:${lineStart}`;
   }
 
   static getSavedState(source: MapSourceContext): MapState | null {
     const key = this.getStateKey(source);
+
     if (!key) return null;
+
     return getViewportStates().get(key) || null;
   }
 

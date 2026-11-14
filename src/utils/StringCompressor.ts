@@ -10,7 +10,7 @@ export interface OverlayCompressionCodec {
   decompress(data: Uint8Array): Uint8Array;
 }
 
-interface OverlayCompressionState {
+export interface OverlayCompressionState {
   codec: OverlayCompressionCodec | null;
   initPromise: Promise<void> | null;
   level: number;
@@ -41,30 +41,38 @@ export function setOverlayCompressionLevel(level: number): void {
 // Chunked to avoid call-stack limits on large payloads.
 export function bytesToBase64(bytes: Uint8Array): string {
   const withToBase64 = bytes as Uint8Array & { toBase64?: () => string };
+
   if (typeof withToBase64.toBase64 === "function") {
     return withToBase64.toBase64();
   }
+
   const CHUNK_SIZE = 0x8000;
   const chunks: string[] = [];
+
   for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
     chunks.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE)));
   }
+
   return btoa(chunks.join(''));
 }
 
 // Throws on input that is not valid base64.
 export function base64ToBytes(data: string): Uint8Array {
   const withFromBase64 = Uint8Array as typeof Uint8Array & { fromBase64?: (data: string) => Uint8Array };
+
   if (typeof withFromBase64.fromBase64 === "function") {
     return withFromBase64.fromBase64(data);
   }
+
   // A preallocated loop over atob decodes large blobs several times faster
   // than Uint8Array.from's per-character callback.
   const binary = atob(data);
   const bytes = new Uint8Array(binary.length);
+
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
+
   return bytes;
 }
 
@@ -73,9 +81,11 @@ const textDecoder = new TextDecoder();
 
 function requireCodec(): OverlayCompressionCodec {
   const codec = getOverlayCompressionState().codec;
+
   if (!codec) {
     throw new Error("Overlay compression is not initialized. The Places plugin initializes it during load via initOverlayCompression().");
   }
+
   return codec;
 }
 
@@ -88,6 +98,7 @@ export class StringCompressor {
     if (data === undefined || data === null) {
       throw new Error("StringCompressor.compressAndEncode: data cannot be undefined or null");
     }
+
     const state = getOverlayCompressionState();
     const input = textEncoder.encode(data);
     const compressed = requireCodec().compress(input, level !== undefined ? clampCompressionLevel(level) : state.level);
@@ -96,19 +107,23 @@ export class StringCompressor {
     if (compressedBase64.length < input.length) {
       return compressedBase64;
     }
+
     return data;
   }
 
   static decodeAndDecompress(data: string): string {
     let binary: Uint8Array;
+
     try {
       binary = base64ToBytes(data);
     } catch {
       return data;
     }
+
     if (hasMagic(binary, ZSTD_MAGIC)) {
       return textDecoder.decode(requireCodec().decompress(binary));
     }
+
     return data;
   }
 }

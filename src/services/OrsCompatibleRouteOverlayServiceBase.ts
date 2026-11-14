@@ -9,18 +9,10 @@ import {
   formatRouteDistance,
   getIsochroneStyleColors,
 } from './RouteOverlayGeoJson';
-import type {
-  DirectionsOverlayRequest,
-  IsochroneOverlayRequest,
-  RouteWaypoint,
-  RouteOverlayCapabilities,
-  RouteOverlayService,
-} from './IRouteOverlayService';
+import type { DirectionsOverlayRequest, IsochroneOverlayRequest, RouteWaypoint, RouteOverlayCapabilities, RouteOverlayService } from './IRouteOverlayService';
 import { ORS_COMPATIBLE_PROFILES, type OrsCompatibleRoutingProfile } from './OrsCompatibleSnapServiceBase';
 import { assertProviderApiKey, mapTravelMode } from './ProviderServiceHelpers';
 
-// Base class for ORS-compatible route overlay providers: GeoJSON directions,
-// ORS routing profile names, and isochrone ranges expressed as seconds/meters.
 export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverlayService {
   protected constructor(protected extensionSettings: IPlaceExtensionSettings) {}
 
@@ -36,6 +28,7 @@ export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverl
 
   async getDirectionsOverlay(request: DirectionsOverlayRequest): Promise<GeoJSON.FeatureCollection> {
     assertProviderApiKey(this.extensionSettings.apiKey, this.getProviderName());
+
     if (request.optimize && !this.supportsRouteOptimization()) {
       throw new Error(this.getRouteOptimizationUnsupportedMessage());
     }
@@ -44,6 +37,7 @@ export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverl
 
     for (let index = 0; index < request.routes.length; index++) {
       const route = request.routes[index];
+
       if (route.length < 2) continue;
 
       const profile = mapTravelMode(request.mode, ORS_COMPATIBLE_PROFILES);
@@ -58,6 +52,7 @@ export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverl
       ) as GeoJSON.FeatureCollection;
 
       const routeGeometry = result.features?.[0];
+
       if (!routeGeometry || routeGeometry.geometry?.type !== 'LineString') continue;
 
       const routeProperties = routeGeometry.properties as { summary?: { distance?: number; duration?: number }; segments?: Array<{ distance?: number; duration?: number }> } | null;
@@ -65,7 +60,7 @@ export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverl
       const legs = buildRouteLegMetrics(orderedRoute, (routeProperties?.segments ?? []).map(segment => ({
         distanceMeters: Number(segment.distance ?? 0),
         durationSeconds: Number(segment.duration ?? 0),
-      })));
+      })), request.units);
 
       await appendDirectionsRouteFeatures(features, buildDirectionsRouteFeature({
         request,
@@ -107,11 +102,12 @@ export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverl
         const rangeIndex = Math.max(0, ranges.indexOf(value));
         const contour = request.rangeType === 'time' ? value / 60 : value;
         const color = colors[rangeIndex] ?? colors[0] ?? '#4f46e5';
+
         features.push({
           ...feature,
           properties: decorateIsochroneFeatureProperties({
             ...(feature.properties ?? {}),
-            name: formatIsochroneFeatureName(request.name ?? center.name, request.mode, request.rangeType === 'time' ? `${contour} min` : formatRouteDistance(contour)),
+            name: formatIsochroneFeatureName(request.name ?? center.name, request.mode, request.rangeType === 'time' ? `${contour} min` : formatRouteDistance(contour, request.units)),
             provider: this.getProviderName(),
             metric: request.rangeType,
             contour,
@@ -133,8 +129,52 @@ export abstract class OrsCompatibleRouteOverlayServiceBase implements RouteOverl
     return false;
   }
 
-  protected optimizeRoute(_route: RouteWaypoint[], _profile: OrsCompatibleRoutingProfile): Promise<RouteWaypoint[]> {
-    return Promise.reject(new Error(this.getRouteOptimizationUnsupportedMessage()));
+  protected async optimizeRoute(route: RouteWaypoint[], profile: OrsCompatibleRoutingProfile): Promise<RouteWaypoint[]> {
+    if (!this.supportsRouteOptimization()) throw new Error(this.getRouteOptimizationUnsupportedMessage());
+    if (route.length <= 2) return route;
+
+    const intermediateWaypoints = route.slice(1, -1);
+    const result = await this.callOrsCompatibleJson(
+      'optimization',
+      '/optimization',
+      {
+        jobs: intermediateWaypoints.map((point, index) => ({
+          id: index + 1,
+          location: [point.longitude, point.latitude],
+        })),
+        vehicles: [{
+          id: 1,
+          profile,
+          start: [route[0].longitude, route[0].latitude],
+          end: [route[route.length - 1].longitude, route[route.length - 1].latitude],
+        }],
+      },
+      `${profile}, ${route.length} waypoints`,
+    ) as {
+      routes?: Array<{ steps?: Array<{ type?: string; job?: number }> }>;
+      unassigned?: Array<{ id?: number }>;
+    };
+
+    const unassigned = result.unassigned ?? [];
+
+    if (unassigned.length > 0) {
+      throw new Error(`${this.getProviderName()} optimization could not assign ${unassigned.length} waypoint${unassigned.length === 1 ? '' : 's'}.`);
+    }
+
+    const jobIds = (result.routes?.[0]?.steps ?? [])
+      .filter((step) => step.type === 'job')
+      .map((step) => step.job);
+    const expectedIds = new Set(intermediateWaypoints.map((_, index) => index + 1));
+
+    if (jobIds.length !== expectedIds.size || jobIds.some((id) => id === undefined || !expectedIds.delete(id)) || expectedIds.size > 0) {
+      throw new Error(`${this.getProviderName()} optimization returned an incomplete or invalid waypoint order.`);
+    }
+
+    return [
+      route[0],
+      ...jobIds.map((id) => intermediateWaypoints[id! - 1]),
+      route[route.length - 1],
+    ];
   }
 
   protected getRouteOptimizationUnsupportedMessage(): string {

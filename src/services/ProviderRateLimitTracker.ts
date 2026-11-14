@@ -13,7 +13,9 @@ export class ProviderRateLimitTracker {
   async runExclusive<T>(bucket: string, work: () => Promise<T>): Promise<T> {
     const previous = this.queues.get(bucket) ?? Promise.resolve();
     const run = previous.then(work);
+
     this.queues.set(bucket, run.then(() => undefined, () => undefined));
+
     try {
       return await run;
     } finally {
@@ -26,12 +28,15 @@ export class ProviderRateLimitTracker {
   // Wait until the given bucket has capacity again (no-op unless the server reported exhaustion).
   async waitForCapacity(bucket: string): Promise<void> {
     const resumeAt = this.buckets.get(bucket);
+
     if (resumeAt === undefined) return;
 
     const waitMs = resumeAt - Date.now();
+
     if (waitMs > 0) {
       await sleep(waitMs);
     }
+
     this.buckets.delete(bucket);
   }
 
@@ -41,19 +46,24 @@ export class ProviderRateLimitTracker {
 
     if (status === 429) {
       this.buckets.set(bucket, resolveRetryTime(normalized));
+
       return true;
     }
 
     const remaining = Number.parseFloat(normalized['x-ratelimit-remaining'] ?? normalized['x-rate-limit-remaining'] ?? '');
+
     if (Number.isFinite(remaining) && remaining <= 0) {
       const reset = parseResetTimestamp(normalized['x-ratelimit-reset'] ?? normalized['x-rate-limit-reset']);
+
       if (reset !== null) {
         this.buckets.set(bucket, reset);
+
         return false;
       }
     }
 
     this.buckets.delete(bucket);
+
     return false;
   }
 }
@@ -65,6 +75,7 @@ export async function executeRateLimited<T extends { status: number; headers: Re
       await tracker.waitForCapacity(bucket);
       const response = await execute();
       const rateLimited = tracker.recordResponse(bucket, response.status, response.headers);
+
       if (!rateLimited || attempt > 0) {
         return response;
       }
@@ -94,23 +105,29 @@ export class FixedIntervalRateLimiter {
 
 function normalizeHeaderKeys(headers: Record<string, string>): Record<string, string> {
   const normalized: Record<string, string> = {};
+
   for (const [key, value] of Object.entries(headers ?? {})) {
     normalized[key.toLowerCase()] = value;
   }
+
   return normalized;
 }
 
 function resolveRetryTime(headers: Record<string, string>): number {
   const retryAfter = headers['retry-after'];
+
   if (retryAfter) {
     const seconds = Number.parseFloat(retryAfter);
+
     if (Number.isFinite(seconds)) return Date.now() + seconds * 1000;
 
     const date = Date.parse(retryAfter);
+
     if (Number.isFinite(date)) return date;
   }
 
   const reset = parseResetTimestamp(headers['x-ratelimit-reset'] ?? headers['x-rate-limit-reset']);
+
   if (reset !== null) return reset;
 
   // The server rejected the request without saying when to come back.
@@ -120,6 +137,8 @@ function resolveRetryTime(headers: Record<string, string>): number {
 // Reset headers are epoch seconds in most APIs, epoch milliseconds in some.
 function parseResetTimestamp(value: string | undefined): number | null {
   const parsed = Number.parseFloat(value ?? '');
+
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
+
   return parsed > 1e12 ? parsed : parsed * 1000;
 }

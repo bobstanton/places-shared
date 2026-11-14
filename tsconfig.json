@@ -20,9 +20,8 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "rootDir": "src",
-    "outDir": "types",
-    "incremental": true,
-    "tsBuildInfoFile": "types/.tsbuildinfo"
+    "outDir": "dist",
+    "incremental": false
   },
   "include": [
     "src/**/*.ts"

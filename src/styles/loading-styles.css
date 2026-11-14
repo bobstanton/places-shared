@@ -28,7 +28,9 @@
 
 .places-loading-text {
   color: var(--text-muted);
+  font-family: var(--font-interface);
   font-size: var(--font-ui-medium);
+  line-height: var(--line-height-normal);
   text-align: center;
 }
 
@@ -43,8 +45,12 @@
 .places-floating-buttons {
   position: absolute;
   top: var(--size-2-2);
-  inset-inline-end: calc(var(--size-2-2) + 30px + var(--size-2-1)); /* Offset from edit button (30px) with gap */
+  left: auto;
+  right: calc(var(--size-2-2, 4px) + 30px + var(--size-2-1, 2px));
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 2 * var(--size-2-2, 4px) - 30px - var(--size-2-1, 2px));
   gap: var(--size-2-1);
   opacity: 0;
   pointer-events: none;
@@ -53,6 +59,11 @@
 }
 
 .places-floating-buttons.places-floating-buttons-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.is-mobile .places-floating-buttons {
   opacity: 1;
   pointer-events: auto;
 }
@@ -83,9 +94,55 @@
   background: var(--background-modifier-hover);
 }
 
+@media (hover: none), (pointer: coarse) {
+  .places-floating-buttons {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .places-floating-button.is-loading {
   pointer-events: none;
   opacity: 0.6;
+}
+
+.places-floating-buttons.places-native-actions-anchor,
+.places-heatmap-floating-buttons.places-native-actions-anchor {
+  display: none;
+}
+
+.places-native-embed-actions {
+  display: contents;
+}
+
+.embed-actions.places-embed-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 2 * var(--size-2-2, 4px));
+  pointer-events: none;
+  z-index: var(--places-z-map-controls, 20000);
+}
+
+.markdown-source-view.mod-cm6 .cm-embed-block:hover > .places-embed-actions,
+.markdown-source-view.mod-cm6 .cm-embed-block:focus-within > .places-embed-actions,
+.is-mobile .markdown-source-view.mod-cm6 .places-embed-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .markdown-source-view.mod-cm6 .places-embed-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.places-native-embed-actions > button.embed-action {
+  height: auto;
+  margin: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .places-floating-button.is-loading svg {

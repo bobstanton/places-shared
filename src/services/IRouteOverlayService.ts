@@ -1,3 +1,4 @@
+import type { UnitsSystem } from '../Units';
 import type * as GeoJSON from 'geojson';
 import type { Coordinate } from '../geo/DistanceCalculator';
 import type { CachePolicy } from '../settings/CachePolicy';
@@ -14,17 +15,11 @@ export interface RouteWaypoint extends Coordinate {
 }
 
 export interface RouteOverlayRequestBase {
+  units?: UnitsSystem;
   name?: string;
-  // How long a cached overlay stays usable. Default: the shared policy (cache, never expiring from age).
   cache?: CachePolicy;
-  // Route service to use for this group; falls back to the block routeProvider, then the map provider, then the first available service.
   provider?: string;
   mode: RouteTravelMode;
-  // Account for traffic on driving requests. Honored when the provider's
-  // capabilities report the matching flag (`trafficDirections` /
-  // `trafficIsochrones`): Mapbox and Geoapify. Ignored by the rest and for
-  // non-driving modes. Traffic requests bypass the overlay cache - the data
-  // is time-sensitive.
   traffic?: boolean;
 }
 

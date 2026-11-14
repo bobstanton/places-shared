@@ -1,3 +1,5 @@
+import { parseZoomScaledNumber } from '../utils/ZoomScaledNumber';
+
 export interface TerrainDemSpec {
   readonly tiles: readonly string[];
   // DEM pixel encoding. `terrarium` = AWS; `mapbox` = Terrain-RGB.
@@ -12,6 +14,7 @@ export const DEFAULT_HILLSHADE_INTENSITY = 0.5;
 export const DEFAULT_COLOR_RELIEF_OPACITY = 0.4;
 
 export const HILLSHADE_METHODS = ['standard', 'basic', 'combined', 'igor', 'multidirectional'] as const;
+
 export type HillshadeMethod = typeof HILLSHADE_METHODS[number];
 
 export interface ColorReliefStop {
@@ -62,18 +65,24 @@ export function parseColorReliefStops(value: unknown): readonly ColorReliefStop[
   if (typeof value === 'string') {
     return COLOR_RELIEF_PRESETS[value.trim().toLowerCase()];
   }
+
   if (!Array.isArray(value)) return undefined;
   const stops: ColorReliefStop[] = [];
+
   for (const entry of value) {
     if (!entry || typeof entry !== 'object') continue;
     const pairs = Object.entries(entry as Record<string, unknown>);
+
     if (pairs.length !== 1) continue;
     const [rawElevation, rawColor] = pairs[0];
     const elevation = Number(rawElevation);
     const color = typeof rawColor === 'string' ? rawColor.trim() : '';
+
     if (Number.isFinite(elevation) && color) stops.push({ elevation, color });
   }
+
   if (stops.length === 0) return undefined;
+
   return stops.sort((a, b) => a.elevation - b.elevation);
 }
 
@@ -90,6 +99,7 @@ export const DEFAULT_AWS_TERRAIN_DEM: TerrainDemSpec = {
 export function terrainDemFromUrl(url: string): TerrainDemSpec {
   const mapboxEncoded = /#mapbox$/i.test(url);
   const tiles = mapboxEncoded ? url.replace(/#mapbox$/i, '') : url;
+
   return { tiles: [tiles], encoding: mapboxEncoded ? 'mapbox' : 'terrarium', tileSize: 256 };
 }
 
@@ -102,28 +112,12 @@ export interface TerrainExaggerationStop {
 // expression-driven; a curve is applied by recomputing the scalar per zoom.
 export type TerrainExaggeration = number | readonly TerrainExaggerationStop[];
 
-// A plain number is a constant factor; a string with `@z` stops (`1 @z6, 2.5 @z13`)
-// is a zoom curve. A single stop collapses to a constant. Returns undefined for
-// empty/invalid input (the default factor then applies).
 export function parseTerrainExaggeration(value: unknown): TerrainExaggeration | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : undefined;
-  if (typeof value !== 'string') return undefined;
+  const parsed = parseZoomScaledNumber(value);
 
-  const raw = value.trim();
-  if (!raw.includes('@')) {
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
-  }
+  if (typeof parsed === 'number') return parsed >= 0 ? parsed : undefined;
 
-  const stops: TerrainExaggerationStop[] = [];
-  for (const part of raw.split(',')) {
-    const match = part.trim().match(/^(\d*\.?\d+)\s*@\s*z?\s*(\d*\.?\d+)$/i);
-    if (match) stops.push({ factor: parseFloat(match[1]), zoom: parseFloat(match[2]) });
-  }
-  if (stops.length === 0) return undefined;
-  stops.sort((a, b) => a.zoom - b.zoom);
-  return stops.length === 1 ? stops[0].factor : stops;
+  return parsed?.map(({ zoom, value }) => ({ zoom, factor: value }));
 }
 
 // Clamped to the first/last stop outside the range.
@@ -131,15 +125,20 @@ export function exaggerationAtZoom(stops: readonly TerrainExaggerationStop[], zo
   if (stops.length === 0) return DEFAULT_TERRAIN_EXAGGERATION;
   if (zoom <= stops[0].zoom) return stops[0].factor;
   const last = stops[stops.length - 1];
+
   if (zoom >= last.zoom) return last.factor;
+
   for (let i = 1; i < stops.length; i++) {
     const from = stops[i - 1];
     const to = stops[i];
+
     if (zoom <= to.zoom) {
       const t = (zoom - from.zoom) / (to.zoom - from.zoom);
+
       return from.factor + t * (to.factor - from.factor);
     }
   }
+
   return last.factor;
 }
 
@@ -148,23 +147,60 @@ export interface TerrainDemResolution {
   readonly error?: string;
 }
 
-export function resolveTerrainDemSpec(
-  terrainProvider: string | undefined,
-  lookupProvider: (name: string) => TerrainDemSpec | null | undefined,
-  availableProviders: () => readonly string[],
-): TerrainDemResolution {
+export function resolveTerrainDemSpec(terrainProvider: string | undefined, lookupProvider: (name: string) => TerrainDemSpec | null | undefined, availableProviders: () => readonly string[]): TerrainDemResolution {
   const choice = terrainProvider?.trim();
+
   if (!choice) return {};
 
   if (/^https?:\/\//i.test(choice)) return { dem: terrainDemFromUrl(choice) };
   if (choice.toLowerCase() === 'aws') return { dem: DEFAULT_AWS_TERRAIN_DEM };
 
   const source = lookupProvider(choice);
+
   if (source) return { dem: source };
 
   const installed = availableProviders();
   const optionsSuffix = installed.length > 0
     ? `Terrain providers: ${installed.join(', ')}. Use aws or a tile URL for provider-independent terrain.`
     : `No provider supplies terrain - use aws or a tile URL.`;
+
   return { error: `Terrain provider "${choice}" is not available. ${optionsSuffix}` };
+}
+
+export interface TerrainRuntimeConfig {
+  readonly terrainProvider: string;
+  readonly reliefProvider: string;
+  readonly hillshadeIntensity: number;
+  readonly colorReliefOpacity: number;
+  readonly mapProvider: string;
+}
+
+export interface TerrainRuntime {
+  terrainDem?: TerrainDemSpec;
+  reliefDem?: TerrainDemSpec;
+  errors: Array<{ path: string; error: string }>;
+}
+
+export function resolveTerrainRuntime(config: TerrainRuntimeConfig, lookupProvider: (name: string) => TerrainDemSpec | null | undefined, availableProviders: () => readonly string[]): TerrainRuntime {
+  const terrain = resolveTerrainDemSpec(config.terrainProvider, lookupProvider, availableProviders);
+  const errors: Array<{ path: string; error: string }> = [];
+
+  if (terrain.error) errors.push({ path: 'terrain.provider', error: terrain.error });
+
+  const relief = config.reliefProvider.trim()
+    ? resolveTerrainDemSpec(config.reliefProvider, lookupProvider, availableProviders)
+    : undefined;
+
+  if (relief?.error) errors.push({ path: 'terrain.reliefProvider', error: relief.error });
+
+  const reliefWanted = config.hillshadeIntensity > 0 || config.colorReliefOpacity > 0;
+  const reliefDem = !reliefWanted
+    ? undefined
+    : relief
+      ? relief.dem
+      : config.terrainProvider.trim()
+        ? terrain.dem
+        : (lookupProvider(config.mapProvider) ?? undefined);
+
+  return { terrainDem: terrain.dem, reliefDem, errors };
 }

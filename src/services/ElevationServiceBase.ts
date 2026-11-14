@@ -1,7 +1,8 @@
-import { DistanceCalculator, type Coordinate } from '../geo/DistanceCalculator';
-import { type Meters, meters } from '../Units';
-import { type ElevationPoint, type ElevationProfile, type IElevationService } from './IElevationService';
-import type { IPlaceExtensionSettings } from '../settings/PlacesPluginSettings';
+import { DistanceCalculator, type Coordinate } from '../geo/index';
+import { ElevationAccumulator } from '../geo/index';
+import { type Meters, meters } from '../units/index';
+import { type ElevationPoint, type ElevationProfile, type IElevationService } from './index';
+import type { IPlaceExtensionSettings } from '../settings/index';
 
 export abstract class ElevationServiceBase implements IElevationService {
   protected constructor(protected extensionSettings: IPlaceExtensionSettings) {}
@@ -16,7 +17,9 @@ export abstract class ElevationServiceBase implements IElevationService {
     }
 
     const elevations = await this.getElevationForPoints(coordinates);
+
     this.validateElevationResults(coordinates, elevations);
+
     return ElevationServiceBase.buildElevationProfile(coordinates, elevations);
   }
 
@@ -28,6 +31,7 @@ export abstract class ElevationServiceBase implements IElevationService {
     }
 
     const invalidIndex = elevations.findIndex((elevation) => !Number.isFinite(elevation));
+
     if (invalidIndex !== -1) {
       throw new Error(`Elevation provider returned an invalid elevation at point ${invalidIndex + 1}`);
     }
@@ -51,6 +55,7 @@ export abstract class ElevationServiceBase implements IElevationService {
       if (i > 0) {
         const prevCoord = coordinates[i - 1];
         const currCoord = coordinates[i];
+
         cumulativeDistance += DistanceCalculator.haversineDistanceMeters(
           prevCoord.latitude, prevCoord.longitude,
           currCoord.latitude, currCoord.longitude
@@ -69,23 +74,15 @@ export abstract class ElevationServiceBase implements IElevationService {
     const minElevation = elevationValues.length > 0 ? Math.min(...elevationValues) : 0;
     const maxElevation = elevationValues.length > 0 ? Math.max(...elevationValues) : 0;
 
-    let elevationGain = 0;
-    let elevationLoss = 0;
+    const elevation = new ElevationAccumulator();
 
-    for (let i = 1; i < elevations.length; i++) {
-      const diff = elevations[i] - elevations[i - 1];
-      if (diff > 0) {
-        elevationGain += diff;
-      } else {
-        elevationLoss += Math.abs(diff);
-      }
-    }
+    for (const value of elevations) elevation.add(value);
 
     return {
       points,
       totalDistance: meters(cumulativeDistance),
-      elevationGain: meters(elevationGain),
-      elevationLoss: meters(elevationLoss),
+      elevationGain: meters(elevation.gainM),
+      elevationLoss: meters(elevation.lossM),
       minElevation: meters(minElevation),
       maxElevation: meters(maxElevation)
     };

@@ -23,9 +23,11 @@ export function parseNearQuery(query: string): ParsedPlaceLocationQuery | null {
   const trimmed = query.trim();
 
   const parenMatch = trimmed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+
   if (parenMatch) {
     const poi = parenMatch[1].trim();
     const location = parenMatch[2].trim();
+
     if (poi && location) {
       return { poi, location, mode: 'near' };
     }

@@ -1,0 +1,14 @@
+import type { NestedKeyDefinition, ParameterDefinition } from '../services/CodeBlockDefinitionTypes';
+export declare const COMMON_SIZE_PARAMS: ParameterDefinition[];
+export declare const COMMON_DATE_PARAMS: ParameterDefinition[];
+export declare const COMMON_UNIT_PARAM: ParameterDefinition;
+export declare const COMMON_CACHE_PARAM: ParameterDefinition;
+export declare const COMMON_LOCATION_PARAM: ParameterDefinition;
+export declare const COMMON_COORDINATES_PARAM: ParameterDefinition;
+export declare const COMMON_SIZE_KEYS: string[];
+export declare const COMMON_DATE_KEYS: string[];
+export declare const BOOLEAN_VALUES: string[];
+export declare const UNIT_VALUES: string[];
+export declare const QUERY_PARAMETER_NESTED_KEYS: NestedKeyDefinition[];
+export declare const VALUE_DETAILS: Record<string, Record<string, string>>;
+export declare function valueDetail(key: string, value: string): string | undefined;

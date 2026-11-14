@@ -1,5 +1,6 @@
 import { MapPlace, hasTrackData } from '../Place';
 import type { MapPrepareTimings } from '../settings/MapConfiguration';
+import { appendText, createDiv, createElement, createSpan, emptyElement, setCssProperties } from '../utils/Dom';
 
 export interface DebugTilesetSummary {
   url: string;
@@ -102,6 +103,7 @@ interface DebugLeafletMapLike {
 
 function rafCoalesced(handler: () => void): () => void {
   let scheduled = false;
+
   return () => {
     if (scheduled) return;
     scheduled = true;
@@ -114,12 +116,15 @@ function rafCoalesced(handler: () => void): () => void {
 
 function rafCoalescedLatLng(handler: (lat: number, lng: number) => void): (lat: number, lng: number) => void {
   let pending: { lat: number; lng: number } | null = null;
+
   return (lat, lng) => {
     const scheduled = pending !== null;
+
     pending = { lat, lng };
     if (scheduled) return;
     window.requestAnimationFrame(() => {
       const last = pending;
+
       pending = null;
       if (last) handler(last.lat, last.lng);
     });
@@ -128,10 +133,12 @@ function rafCoalescedLatLng(handler: (lat: number, lng: number) => void): (lat: 
 
 export function createVectorDebugOverlayAdapter(mapSource: unknown, options: { includeClickFeatures?: boolean } = {}): DebugOverlayAdapter {
   const map = mapSource as DebugVectorMapLike;
+
   return {
     getState: () => getCommonDebugMapState(map),
     onStateChange: handler => {
       const coalesced = rafCoalesced(handler);
+
       map.on('zoom', coalesced);
       map.on('zoomend', coalesced);
       map.on('move', coalesced);
@@ -139,6 +146,7 @@ export function createVectorDebugOverlayAdapter(mapSource: unknown, options: { i
     },
     onMouseMove: handler => {
       const coalesced = rafCoalescedLatLng(handler);
+
       map.on('mousemove', event => {
         if (event.lngLat) coalesced(event.lngLat.lat, event.lngLat.lng);
       });
@@ -151,13 +159,16 @@ export function createVectorDebugOverlayAdapter(mapSource: unknown, options: { i
           map.on('click', event => {
             if (!event.point || !map.queryRenderedFeatures) {
               handler([]);
+
               return;
             }
+
             const tolerance = 10;
             const bbox = [
               [event.point.x - tolerance, event.point.y - tolerance],
               [event.point.x + tolerance, event.point.y + tolerance]
             ];
+
             handler(map.queryRenderedFeatures(bbox).map(createDebugFeatureSummary));
           });
         }
@@ -167,11 +178,13 @@ export function createVectorDebugOverlayAdapter(mapSource: unknown, options: { i
 
 export function createLeafletDebugOverlayAdapter(mapSource: unknown): DebugOverlayAdapter {
   const map = mapSource as DebugLeafletMapLike;
+
   return {
     interactive: false,
     getState: () => getCommonDebugMapState(map),
     onStateChange: handler => {
       const coalesced = rafCoalesced(handler);
+
       map.on('zoom', coalesced);
       map.on('zoomend', coalesced);
       map.on('move', coalesced);
@@ -179,6 +192,7 @@ export function createLeafletDebugOverlayAdapter(mapSource: unknown): DebugOverl
     },
     onMouseMove: handler => {
       const coalesced = rafCoalescedLatLng(handler);
+
       map.on('mousemove', event => {
         if (event.latlng) coalesced(event.latlng.lat, event.latlng.lng);
       });
@@ -198,8 +212,9 @@ export function addSharedDebugOverlay(container: HTMLElement, input: DebugOverla
     renderStartTime: Date.now()
   };
 
-  const debugDiv = createDiv({ cls: 'places-debug-overlay' });
-  debugDiv.setCssProps({
+  const debugDiv = createDiv(null, { cls: 'places-debug-overlay' });
+
+  setCssProperties(debugDiv, {
     position: 'absolute',
     top: '10px',
     left: '10px',
@@ -232,38 +247,45 @@ export function addSharedDebugOverlay(container: HTMLElement, input: DebugOverla
   container.appendChild(debugDiv);
 
   const createSection = (title: string) => {
-    const section = createDiv();
-    section.setCssProps({ marginBottom: '6px' });
-    const titleSpan = section.createSpan({ text: title });
-    titleSpan.setCssProps({
+    const section = createDiv(null);
+
+    setCssProperties(section, { marginBottom: '6px' });
+    const titleSpan = createSpan(section, { text: title });
+
+    setCssProperties(titleSpan, {
       color: '#ffff00',
       fontWeight: 'bold'
     });
+
     return section;
   };
 
   const mapStateSection = createSection('Map State');
-  const zoomLine = createDiv();
-  const centerLine = createDiv();
-  const boundsLine = createDiv();
+  const zoomLine = createDiv(null);
+  const centerLine = createDiv(null);
+  const boundsLine = createDiv(null);
+
   mapStateSection.appendChild(zoomLine);
   mapStateSection.appendChild(centerLine);
   mapStateSection.appendChild(boundsLine);
   debugDiv.appendChild(mapStateSection);
 
   const providerSection = createSection('Provider');
-  providerSection.createDiv({ text: `Provider: ${input.providerName}` });
+
+  createDiv(providerSection, { text: `Provider: ${input.providerName}` });
+
   if (input.style) {
-    providerSection.createDiv({ text: `Style: ${input.style}` });
+    createDiv(providerSection, { text: `Style: ${input.style}` });
   }
+
   debugDiv.appendChild(providerSection);
 
   const dataSection = createSection('Data');
-  const markersLine = dataSection.createDiv();
-  const tracksLine = dataSection.createDiv();
-  const overlaysLine = dataSection.createDiv();
-  const imageOverlaysLine = dataSection.createDiv();
-  const vectorTileOverlaysLine = input.vectorTileOverlayCount !== undefined ? dataSection.createDiv() : undefined;
+  const markersLine = createDiv(dataSection);
+  const tracksLine = createDiv(dataSection);
+  const overlaysLine = createDiv(dataSection);
+  const imageOverlaysLine = createDiv(dataSection);
+  const vectorTileOverlaysLine = input.vectorTileOverlayCount !== undefined ? createDiv(dataSection) : undefined;
   const renderDataSection = () => {
     markersLine.textContent = `Markers: ${debugData.places.length}`;
     tracksLine.textContent = `Tracks: ${debugData.trackCount}`;
@@ -271,11 +293,14 @@ export function addSharedDebugOverlay(container: HTMLElement, input: DebugOverla
       ? `GeoJSON overlays: ${debugData.geoJsonOverlayCount}`
       : `Overlays: ${debugData.overlayCount}`;
     imageOverlaysLine.textContent = `Image overlays: ${debugData.imageOverlayCount}`;
+
     if (vectorTileOverlaysLine) {
       vectorTileOverlaysLine.textContent = `Vector tile overlays: ${debugData.vectorTileOverlayCount ?? 0}`;
     }
   };
+
   renderDataSection();
+
   debugData.updateData = update => {
     debugData.places = update.places;
     debugData.trackCount = update.places.filter(place => hasTrackData(place)).length;
@@ -285,32 +310,39 @@ export function addSharedDebugOverlay(container: HTMLElement, input: DebugOverla
     if (update.vectorTileOverlayCount !== undefined) debugData.vectorTileOverlayCount = update.vectorTileOverlayCount;
     renderDataSection();
   };
+
   debugDiv.appendChild(dataSection);
 
   if (input.tilesets?.length) {
     const tilesetSection = createSection('Tilesets');
+
     for (const tileset of input.tilesets) {
-      tilesetSection.createDiv({ text: tileset.url.split('/').pop() ?? tileset.url });
+      createDiv(tilesetSection, { text: tileset.url.split('/').pop() ?? tileset.url });
+
       for (const layer of tileset.layers) {
         const fields = Object.keys(layer.fields);
-        const line = tilesetSection.createDiv({
+        const line = createDiv(tilesetSection, {
           text: `  ${layer.id}${fields.length ? `: ${fields.join(', ')}` : ''}`,
         });
-        line.setCssProps({ color: '#c0c0c0', whiteSpace: 'normal' });
+
+        setCssProperties(line, { color: '#c0c0c0', whiteSpace: 'normal' });
       }
     }
+
     debugDiv.appendChild(tilesetSection);
   }
 
   const mouseSection = createSection('Mouse');
-  const mouseLine = createDiv({ text: 'Move mouse over map...' });
+  const mouseLine = createDiv(null, { text: 'Move mouse over map...' });
+
   mouseSection.appendChild(mouseLine);
   debugDiv.appendChild(mouseSection);
 
   if (adapter.onClickFeatures) {
     const clickSection = createSection('Click Features');
-    const clickInfo = createDiv({ text: 'Click on map to see features...' });
-    clickInfo.setCssProps({
+    const clickInfo = createDiv(null, { text: 'Click on map to see features...' });
+
+    setCssProperties(clickInfo, {
       maxHeight: '400px',
       overflowY: 'auto',
       fontSize: '10px'
@@ -322,7 +354,8 @@ export function addSharedDebugOverlay(container: HTMLElement, input: DebugOverla
   }
 
   const perfSection = createSection('Performance');
-  const perfLines = createDiv();
+  const perfLines = createDiv(null);
+
   perfSection.appendChild(perfLines);
   debugDiv.appendChild(perfSection);
 
@@ -333,32 +366,37 @@ export function addSharedDebugOverlay(container: HTMLElement, input: DebugOverla
 
     zoomLine.textContent = `Zoom: ${state.zoom.toFixed(2)} (min: ${minZoom}, max: ${maxZoom})`;
     centerLine.textContent = `Center: ${state.center.lat.toFixed(6)}, ${state.center.lng.toFixed(6)}`;
-    boundsLine.empty();
-    boundsLine.appendText('Bounds: ');
-    const boundsSpan = boundsLine.createSpan({
+    emptyElement(boundsLine);
+    appendText(boundsLine, 'Bounds: ');
+    const boundsSpan = createSpan(boundsLine, {
       text: state.bounds
         ? `SW(${state.bounds.south.toFixed(4)}, ${state.bounds.west.toFixed(4)}) NE(${state.bounds.north.toFixed(4)}, ${state.bounds.east.toFixed(4)})`
         : 'N/A'
     });
-    boundsSpan.setCssProps({ fontSize: '10px' });
+
+    setCssProperties(boundsSpan, { fontSize: '10px' });
   };
 
   const addPerfLine = (label: string, value: string, style?: 'detail' | 'total') => {
-    const line = perfLines.createDiv({ text: `${label}: ${value}` });
-    if (style === 'detail') line.setCssProps({ paddingLeft: '10px', fontSize: '10px', color: '#8c8' });
-    if (style === 'total') line.setCssProps({ color: '#0ff' });
+    const line = createDiv(perfLines, { text: `${label}: ${value}` });
+
+    if (style === 'detail') setCssProperties(line, { paddingLeft: '10px', fontSize: '10px', color: '#8c8' });
+    if (style === 'total') setCssProperties(line, { color: '#0ff' });
   };
 
   const updatePerformance = () => {
     const renderStartTime = debugData.renderStartTime ?? Date.now();
     const prepare = debugData.prepareTimings;
-    perfLines.empty();
+
+    emptyElement(perfLines);
 
     if (prepare) {
       addPerfLine('Data load', `${Math.round(prepare.collectMs)}ms`);
+
       for (const source of prepare.sources) {
         addPerfLine(source.id, `${Math.round(source.durationMs)}ms, ${source.places} places`, 'detail');
       }
+
       addPerfLine('Fingerprint', `${Math.round(prepare.fingerprintMs)}ms`);
       addPerfLine('Styles', `${Math.round(prepare.stylesMs)}ms`);
       addPerfLine('Labels', `${Math.round(prepare.labelsMs)}ms`);
@@ -417,36 +455,42 @@ export function createDebugFeatureSummary(feature: {
 }
 
 function renderClickFeatures(clickInfo: HTMLElement, features: DebugFeatureSummary[]): void {
-  clickInfo.empty();
+  emptyElement(clickInfo);
 
   if (features.length === 0) {
-    const noFeatures = clickInfo.createSpan({ text: 'No features at click point' });
-    noFeatures.setCssProps({ color: '#888' });
+    const noFeatures = createSpan(clickInfo, { text: 'No features at click point' });
+
+    setCssProperties(noFeatures, { color: '#888' });
+
     return;
   }
 
-  const headerDiv = clickInfo.createDiv({ text: `Found ${features.length} features:` });
-  headerDiv.setCssProps({ color: '#0ff' });
+  const headerDiv = createDiv(clickInfo, { text: `Found ${features.length} features:` });
+
+  setCssProperties(headerDiv, { color: '#0ff' });
 
   features.forEach((feature, index) => {
     const geomType = feature.geometryType ?? 'unknown';
     const layerId = feature.layer ?? 'unknown';
 
-    const featureDiv = clickInfo.createDiv();
-    featureDiv.setCssProps({
+    const featureDiv = createDiv(clickInfo);
+
+    setCssProperties(featureDiv, {
       marginTop: '4px',
       borderTop: '1px solid #333',
       paddingTop: '2px'
     });
 
-    const featureHeader = featureDiv.createDiv();
-    featureHeader.setCssProps({
+    const featureHeader = createDiv(featureDiv);
+
+    setCssProperties(featureHeader, {
       color: feature.wouldPassPoiFilter ? '#0f0' : '#f88',
       cursor: 'pointer'
     });
 
-    const jsonPre = featureDiv.createEl('pre');
-    jsonPre.setCssProps({
+    const jsonPre = createElement(featureDiv, 'pre');
+
+    setCssProperties(jsonPre, {
       display: 'none',
       margin: '4px 0',
       padding: '4px',
@@ -472,9 +516,10 @@ function renderClickFeatures(clickInfo: HTMLElement, features: DebugFeatureSumma
     const updateHeader = () => {
       featureHeader.textContent = `${expanded ? 'v' : '>'} ${index + 1}. ${geomType} - ${layerId}`;
     };
+
     featureHeader.addEventListener('click', () => {
       expanded = !expanded;
-      jsonPre.setCssProps({
+      setCssProperties(jsonPre, {
         display: expanded ? 'block' : 'none'
       });
       updateHeader();
@@ -496,6 +541,7 @@ function getCommonDebugMapState(map: {
 }): DebugOverlayMapState {
   const center = map.getCenter();
   const bounds = map.getBounds();
+
   return {
     zoom: map.getZoom(),
     minZoom: map.getMinZoom(),

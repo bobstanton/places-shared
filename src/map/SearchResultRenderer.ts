@@ -1,4 +1,5 @@
 import { Place } from '../Place';
+import { appendText, createDiv, createSpan } from '../utils/Dom';
 
 export const SearchResultClasses = {
   item: 'places-search-result-item',
@@ -25,23 +26,26 @@ export function renderSearchResult(container: HTMLElement, place: Place, options
   const { renderIcon, showWebsite = true, showTags = true, renderCustomDetails, renderActions, compact = false } = options;
 
   if (!compact) {
-    container.addClass(SearchResultClasses.item);
+    container.classList.add(SearchResultClasses.item);
   }
 
   if (renderIcon && place.source) {
-    const iconEl = container.createSpan({ cls: SearchResultClasses.icon });
+    const iconEl = createSpan(container, { cls: SearchResultClasses.icon });
+
     renderIcon(iconEl, place.source);
   }
 
-  const contentContainer = container.createDiv({ cls: SearchResultClasses.content });
+  const contentContainer = createDiv(container, { cls: SearchResultClasses.content });
 
   const displayName = place.name || place.address || 'Unknown location';
-  const nameEl = contentContainer.createDiv({ cls: SearchResultClasses.name });
-  nameEl.appendText(displayName);
+  const nameEl = createDiv(contentContainer, { cls: SearchResultClasses.name });
+
+  appendText(nameEl, displayName);
 
   if (place.address && place.name && place.address !== place.name) {
-    const addressEl = contentContainer.createDiv({ cls: SearchResultClasses.address });
-    addressEl.appendText(place.address);
+    const addressEl = createDiv(contentContainer, { cls: SearchResultClasses.address });
+
+    appendText(addressEl, place.address);
   }
 
   if (renderCustomDetails) {
@@ -49,24 +53,28 @@ export function renderSearchResult(container: HTMLElement, place: Place, options
   }
 
   if (showWebsite && place.website) {
-    const websiteEl = contentContainer.createDiv({ cls: SearchResultClasses.website });
-    websiteEl.appendText(place.website.replace(/^https?:\/\//, '').replace(/\/$/, ''));
+    const websiteEl = createDiv(contentContainer, { cls: SearchResultClasses.website });
+
+    appendText(websiteEl, place.website.replace(/^https?:\/\//, '').replace(/\/$/, ''));
   }
 
   const wantTags = showTags && place.tags && place.tags.length > 0;
+
   if (!wantTags && !renderActions) return;
 
-  const footer = renderActions ? contentContainer.createDiv({ cls: SearchResultClasses.footer }) : contentContainer;
+  const footer = renderActions ? createDiv(contentContainer, { cls: SearchResultClasses.footer }) : contentContainer;
 
   if (wantTags) {
-    const tagsContainer = footer.createDiv({ cls: SearchResultClasses.tags });
+    const tagsContainer = createDiv(footer, { cls: SearchResultClasses.tags });
+
     place.tags.forEach(tag => {
-      const tagEl = tagsContainer.createSpan({ cls: 'tag' });
-      tagEl.appendText(tag);
+      const tagEl = createSpan(tagsContainer, { cls: 'tag' });
+
+      appendText(tagEl, tag);
     });
   }
 
   if (renderActions) {
-    renderActions(footer.createDiv({ cls: SearchResultClasses.actions }), place);
+    renderActions(createDiv(footer, { cls: SearchResultClasses.actions }), place);
   }
 }

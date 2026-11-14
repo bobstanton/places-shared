@@ -121,18 +121,25 @@ export function describeUnsupportedSnapOptions(providerDisplayName: string, requ
   const unsupported: string[] = [];
 
   if (request.costing && !supported.costing) unsupported.push(note('costing name', 'Use mode instead; costing names are Valhalla-only.'));
+
   if (request.costingOptions && Object.keys(request.costingOptions).length > 0 && !supported.costingOptions) {
     unsupported.push(note('costing options', 'Only Valhalla-based providers accept them.'));
   }
+
   if (request.timestamps === true && !supported.timestamps) unsupported.push(note('timestamp input', 'Matching here uses geometry alone.'));
   if (request.tidy && !supported.tidy) unsupported.push(note('tidy option', 'Only Mapbox collapses near-duplicate points before matching.'));
+
   if (request.exclude?.length && !supported.exclude) {
     unsupported.push(note('exclude list', 'Valhalla-based providers express the same intent through costingOptions (use_ferry, use_tolls).'));
   }
+
   if (request.shapeMatch && !supported.shapeMatch) unsupported.push(note('shape match strategy', 'Only Valhalla-based providers choose a matching strategy.'));
+
   if (request.traceOptions && Object.keys(request.traceOptions).length > 0 && !supported.traceOptions) {
     unsupported.push(note('trace options', 'Self-hosted Valhalla and FreeRoute accept them; the Stadia trace-attributes API does not.'));
   }
+
   if (request.attributes?.length && !supported.attributes) unsupported.push(note('edge attributes', 'Only Valhalla-based providers return per-way details.'));
+
   return unsupported;
 }

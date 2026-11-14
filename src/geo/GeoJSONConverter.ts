@@ -11,12 +11,7 @@ export interface GeoJSONConversionResult {
 }
 
 export interface ConvertPlacesOptions {
-  // Embed the full place (metadata, computed styles, overlay geometry) as a JSON string
-  // on each feature. Required by renderers that build marker DOM from features (Leaflet).
-  // MUST be false for features that go into GL sources: source data is serialized to the
-  // map worker, and at scale the embedded JSON dominates load time and memory - GL click
-  // handlers resolve places by the `placeId` property instead.
-  serializePlace?: boolean;
+  includeMapPlace?: boolean;
 }
 
 export function convertPlacesToFeatureCollection(places: MapPlace[], options?: ConvertPlacesOptions): GeoJSONConversionResult {
@@ -29,6 +24,7 @@ export function convertPlacesToFeatureCollection(places: MapPlace[], options?: C
 
   places.forEach((place, index) => {
     boundingBox.update(place.latitude, place.longitude);
+
     if (place.overlay?.geojson) {
       for (const feature of place.overlay.geojson.features) {
         if (feature.geometry.type === 'LineString') {
@@ -37,6 +33,7 @@ export function convertPlacesToFeatureCollection(places: MapPlace[], options?: C
           }
         } else if (feature.geometry.type === 'Point') {
           const coords = feature.geometry.coordinates as [number, number];
+
           boundingBox.update(coords[1], coords[0]);
         }
       }
@@ -48,14 +45,17 @@ export function convertPlacesToFeatureCollection(places: MapPlace[], options?: C
       "icon": place.icon,
       "placeId": getPlaceId(place)
     };
-    if (options?.serializePlace !== false) {
-      properties.mapPlace = JSON.stringify(place);
+
+    if (options?.includeMapPlace !== false) {
+      properties.mapPlace = place;
     }
 
     const labelZIndex = place.labelStyle?.zIndex ?? place.iconStyle?.zIndex ?? 0;
+
     properties.labelSortKey = -labelZIndex - index / (places.length + 1);
 
     const labelStyle = place.labelStyle;
+
     if (labelStyle) {
       Object.assign(properties, conditionalProps({
         labelColor: labelStyle.color,
@@ -67,13 +67,16 @@ export function convertPlacesToFeatureCollection(places: MapPlace[], options?: C
         labelHasUserStyle: labelStyle.hasUserStyle ? true : undefined,
       }));
     }
+
     // Hide the label with its marker.
     const labelZoom = mergeZoomRanges(place.iconStyle?.zoom, labelStyle?.zoom);
+
     Object.assign(properties, conditionalProps({
       labelMinZoom: labelZoom?.minZoom,
       labelMaxZoom: labelZoom?.maxZoom,
     }));
     const labelOffsetEm = getLabelOffsetEm(place.iconStyle, labelStyle);
+
     if (labelOffsetEm !== 1) {
       properties.labelOffsetEm = labelOffsetEm;
     }

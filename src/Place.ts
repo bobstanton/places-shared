@@ -2,6 +2,9 @@ import type { TrackColorBy } from './track/TrackRenderer';
 import type * as GeoJSON from 'geojson';
 import type { Meters } from './Units';
 import type { ZoomRange } from './ZoomVisibility';
+import { getMarkerIconGeometry } from './map/MarkerIconGeometry';
+
+export { getMaxIconScale } from './map/MarkerIconGeometry';
 
 export interface Waypoint {
   name: string;
@@ -19,7 +22,8 @@ export interface Waypoint {
 
 export interface OverlayTrackData {
   elevation?: Meters[];
-  // Per-point timestamps as epoch ms, parallel to `elevation`. Elevations ride
+  // Per-point timestamps as epoch ms, aligned with concatenated line coordinates
+  // (NaN for missing times). Elevations ride
   // in the LineString's Z coordinate; GeoJSON has no slot for time, and it
   // travels in the feature's `coordTimes` property.
   time?: number[];
@@ -30,11 +34,8 @@ import { TrackOverlayStyle } from './overlay/OverlaySystem';
 
 export interface MapPlaceOverlay {
   geojson: GeoJSON.FeatureCollection;
-  track?: OverlayTrackData;
+  track?: OverlayTrackData | null;
   style?: TrackOverlayStyle;
-  // Start/midpoint/end path-label point features, kept out of `geojson`: bounds, visibility,
-  // hasTrackData, and clustering read the track geometry without label points. Merged into
-  // the overlay source only at render time.
   pathLabels?: GeoJSON.Feature[];
 }
 
@@ -86,6 +87,13 @@ export interface IconShadowStyle {
   color: string;
 }
 
+export interface IconShapeStyle {
+  fill?: string;
+  stroke?: string;
+  strokeWidth: number;
+  radius: { value: number; unit: 'px' | '%' };
+}
+
 // One stop of a zoom-interpolated icon size rule (`font-size: 25% @z7, 87.5% @z15`).
 export interface IconZoomSizeStop {
   zoom: number;
@@ -96,13 +104,10 @@ export interface ComputedIconStyle {
   opacity?: number;
   zIndex?: number;
   zoom?: ZoomRange;
-  // Base icon scale from a plain `font-size: N%` rule (also kept in inlineCss for HTML markers).
   scale?: number;
-  // Glyph colour from a `color:` rule (also kept in inlineCss for HTML markers).
-  // Only affects text-presentation glyphs - arrows, geometric shapes, dingbats.
-  // Colour emoji are bitmap glyphs and ignore it in both renderers.
   color?: string;
   badge?: IconBadgeStyle;
+  shape?: IconShapeStyle;
   shadows?: IconShadowStyle[];
   zoomSizeStops?: IconZoomSizeStop[];
   inlineCss: string;
@@ -113,36 +118,16 @@ export interface ComputedIconStyle {
 // or `display: none` - and both renderers must agree, per behavior contract #4.
 export function isStyleHidden(style: { opacity?: number; inlineCss?: string } | undefined): boolean {
   if (!style) return false;
+
   return style.opacity === 0 || style.inlineCss?.toLowerCase().includes('display: none') === true;
 }
 
-// The symbol renderer rasterizes the style image at this scale, and GL only ever downscales -
-// upscaling a raster is what makes enlarged emoji blurry.
-export function getMaxIconScale(style: ComputedIconStyle | undefined): number {
-  const base = style?.scale ?? 1;
-  const maxStop = (style?.zoomSizeStops ?? []).reduce((max, stop) => Math.max(max, stop.scale), 1);
-  return Math.max(1, base * maxStop);
-}
-
-// Default native label text size; 1em of it equals half the 28px marker icon: a 1em offset clears an unscaled icon.
 export const DEFAULT_LABEL_FONT_SIZE_PX = 14;
 
-// Label radial offset (in ems of the label's own text size) that clears the icon and any
-// badge overhang at the icon's largest rendered scale.
 export function getLabelOffsetEm(iconStyle: ComputedIconStyle | undefined, labelStyle: ComputedLabelStyle | undefined): number {
-  const badge = iconStyle?.badge;
-  const badgeScale = (badge?.sizePct ?? 100) / 100;
-  const offsetOverhang = badge
-    ? Math.max(Math.abs(getBadgeOffsetScale(badge.offsetX, badgeScale)), Math.abs(getBadgeOffsetScale(badge.offsetY, badgeScale)))
-    : 0;
-  const badgeOverhang = Math.max(1, badgeScale + offsetOverhang);
-  const clearanceScale = getMaxIconScale(iconStyle) * badgeOverhang;
-  return clearanceScale * DEFAULT_LABEL_FONT_SIZE_PX / (labelStyle?.fontSize ?? DEFAULT_LABEL_FONT_SIZE_PX);
-}
+  const { left, right, top, bottom } = getMarkerIconGeometry(iconStyle);
 
-function getBadgeOffsetScale(offset: IconBadgeOffset | undefined, badgeScale: number): number {
-  if (!offset) return 0;
-  return offset.unit === '%' ? badgeScale * offset.value / 100 : offset.value / DEFAULT_LABEL_FONT_SIZE_PX;
+  return Math.max(-left, right, -top, bottom) / (labelStyle?.fontSize ?? DEFAULT_LABEL_FONT_SIZE_PX);
 }
 
 export interface ComputedLabelStyle {
@@ -163,9 +148,8 @@ export interface ComputedLabelStyle {
   classes: string[];
 }
 
-// A declarative popup action for a place. Data only - the callback travels on
-// MapRuntimeContext.onPlaceAction because places are serialized into GL
-// sources and Leaflet feature properties. See docs/per-place-interactions.md.
+// Callbacks travel on
+// MapRuntimeContext.onPlaceAction; place data can cross GL serialization boundaries.
 export interface PlaceAction {
   // Action id, unique within the place.
   id: string;
@@ -176,25 +160,25 @@ export interface PlaceAction {
 }
 
 export interface MapPlace {
-  // Id for interaction routing. Blocks that use actions must set it.
+  settings?: import('./settings/MapConfiguration').MapConfigPatch;
+  settingsLayers?: readonly import('./settings/PlaceSettings').PlaceSettingsLayer[];
   id?: string;
   latitude: number;
   longitude: number;
   name: string;
-  // Detail line shown under the name in the marker popup (type, distance, ...).
   subtitle?: string;
-  originalName?: string;  // Name before label template processing.
+  originalName?: string;   
   icon: string;
+  iconImage?: string;
+  iconImageStyle?: ComputedIconStyle;
+  iconImageUrl?: string;
+  markerEnabled?: boolean;
   filePath?: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
-  // Complete normalized VaultQuery row, retained for per-place templates.
   queryRow?: Record<string, unknown>;
 
   overlay?: MapPlaceOverlay;
-  // Per-note override of the block's `track.defaultVisibility`, same
-  // `visible`/`hidden` vocabulary. Set from the `trackDefaultVisibility` note
-  // property (the flattened internal name, shared with the resolved config).
   trackDefaultVisibility?: 'visible' | 'hidden';
   trackColorBy?: TrackColorBy;
 
@@ -204,16 +188,15 @@ export interface MapPlace {
   trackStyle?: string;
   trackDashArray?: string;
   trackOutline?: boolean;
+  trackOutlineStyle?: 'solid' | 'dashed';
   trackOutlineColor?: string;
   trackOutlineWeight?: number;
   trackOutlineOpacity?: number;
   markerZoom?: ZoomRange;
   labelZoom?: ZoomRange;
   trackZoom?: ZoomRange;
+  overlayZoom?: ZoomRange;
 
-  // Marker rotation in degrees clockwise from true north, resolved per place
-  // from the block's `iconRotation`. ComputedIconStyle is rebuilt wholesale by
-  // MarkerStyleService; a field there would be overwritten.
   iconRotation?: number;
   iconStyle?: ComputedIconStyle;
   labelStyle?: ComputedLabelStyle;
@@ -222,24 +205,13 @@ export interface MapPlace {
   actions?: PlaceAction[];
 }
 
-// Deserialize the MapPlace stored on a GeoJSON feature's `mapPlace` property. The full place is
-// serialized to JSON because MapLibre rejects non-primitive feature values. Returns undefined when
-// the property is absent or not a string; throws on malformed JSON, leaving recovery to the caller.
 export function parseMapPlaceProperty(value: unknown): MapPlace | undefined {
-  return typeof value === 'string' && value ? JSON.parse(value) as MapPlace : undefined;
+  if (typeof value === 'string' && value) return JSON.parse(value) as MapPlace;
+
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as MapPlace : undefined;
 }
 
 export function hasTrackData(place: MapPlace | undefined): boolean {
-  if (!place) return false;
-  if (!place.overlay) return false;
-  if (place.overlay.track) return true;
-  return hasLineGeometry(place.overlay.geojson);
-}
-
-function hasLineGeometry(geojson: GeoJSON.FeatureCollection | undefined): boolean {
-  if (!geojson?.features) return false;
-  return geojson.features.some((feature) => {
-    const type = feature.geometry?.type;
-    return type === 'LineString' || type === 'MultiLineString';
-  });
+  return Boolean(place?.overlay && (place.overlay.track
+    || place.overlay.geojson?.features?.some(feature => Boolean(feature.geometry))));
 }

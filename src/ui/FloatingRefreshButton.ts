@@ -1,8 +1,7 @@
-import { setIcon } from 'obsidian';
-import { sleep } from '../utils/Utilities';
+import * as _placesDom from '../utils';
+import { setIcon } from '../services/index';
+import { sleep } from '../utils/index';
 
-// Keep the button busy for at least this long, even when the refresh resolves
-// instantly (cache hit): rapid double clicks cannot trigger a second refresh.
 const MIN_BUSY_MS = 1000;
 
 export interface FloatingRefreshButtonOptions {
@@ -11,18 +10,17 @@ export interface FloatingRefreshButtonOptions {
   className?: string;
   onRefresh: () => Promise<unknown>;
   onError?: (error: unknown) => void;
-  // Element that hosts the indeterminate progress bar while refreshing.
-  // Defaults to the button container's parent (normally the code block root).
   progressHost?: HTMLElement;
+  registerActions?: (container: HTMLElement) => void;
 }
 
 function nextPaint(): Promise<void> {
   return new Promise(resolve => window.requestAnimationFrame(() => window.setTimeout(resolve, 0)));
 }
 
-// Styles in places-shared loading-styles.css.
 export function createFloatingRefreshButton(options: FloatingRefreshButtonOptions): HTMLElement {
-  const refreshButton = options.buttonContainer.createDiv(options.className ?? 'places-floating-button');
+  const refreshButton = _placesDom.createDiv(options.buttonContainer, options.className ?? 'places-floating-button');
+
   refreshButton.setAttribute('aria-label', options.ariaLabel);
   setIcon(refreshButton, 'refresh-cw');
 
@@ -30,21 +28,23 @@ export function createFloatingRefreshButton(options: FloatingRefreshButtonOption
 
   const setBusy = (value: boolean): void => {
     busy = value;
-    options.buttonContainer.toggleClass('places-floating-buttons-active', value);
-    refreshButton.toggleClass('is-loading', value);
+    _placesDom.toggleClass(options.buttonContainer, 'places-floating-buttons-active', value);
+    _placesDom.toggleClass(refreshButton, 'is-loading', value);
     refreshButton.setAttribute('aria-disabled', String(value));
-    refreshButton.empty();
+    _placesDom.emptyElement(refreshButton);
     setIcon(refreshButton, value ? 'loader' : 'refresh-cw');
   };
 
   const beginProgress = (): (() => void) => {
     const host = options.progressHost ?? options.buttonContainer.parentElement;
+
     if (!host) return () => undefined;
-    host.addClass('places-refresh-progress-host');
-    const bar = host.createDiv('places-refresh-progress');
+    _placesDom.addClass(host, 'places-refresh-progress-host');
+    const bar = _placesDom.createDiv(host, 'places-refresh-progress');
+
     return () => {
       bar.remove();
-      host.removeClass('places-refresh-progress-host');
+      _placesDom.removeClass(host, 'places-refresh-progress-host');
     };
   };
 
@@ -57,23 +57,25 @@ export function createFloatingRefreshButton(options: FloatingRefreshButtonOption
 
     void (async () => {
       try {
-        // Refresh work is often synchronous main-thread heavy (query engines run
-        // on the main thread); without an explicit paint the busy spinner and
-        // progress bar never become visible before the freeze.
         await nextPaint();
+
         await options.onRefresh();
       } catch (error) {
         options.onError?.(error);
       } finally {
         const remainingMs = MIN_BUSY_MS - (Date.now() - startedAt);
+
         if (remainingMs > 0) {
           await sleep(remainingMs);
         }
+
         endProgress();
         setBusy(false);
       }
     })();
   });
+
+  options.registerActions?.(options.buttonContainer);
 
   return refreshButton;
 }

@@ -3,8 +3,12 @@ import { DEFAULT_GRADE_WINDOW, DEFAULT_SPEED_WINDOW, type MetricWindow } from '.
 import { PolylineCodec } from './PolylineCodec';
 import { SegmentCreator, GradeColoredSegment } from './SegmentCreator';
 import { Meters } from '../Units';
-import { } from '../settings/MapDefaults';
-import { TRACK_STYLE_DEFAULTS } from './TrackVisibilityResolver';
+import { finishWork, CooperativeWorkQueue } from '../utils/CooperativeWork';
+import { sharedRegistryValue } from '../utils/CrossBundleRegistry';
+
+export const trackGradientWork = sharedRegistryValue(Symbol.for('places.gradient-work-queue'), () => new CooperativeWorkQueue());
+
+import { TRACK_STYLE_DEFAULTS, mergeWithDefaults } from './TrackVisibilityResolver';
 
 export interface TrackStyle {
   style: 'solid' | 'dashed';
@@ -15,6 +19,8 @@ export interface TrackStyle {
   outlineWeight?: number;
   opacity?: number;
   outlineOpacity?: number;
+  outlineStyle?: 'solid' | 'dashed';
+  outlineDashArray?: number[];
 }
 
 export interface TrackRenderResult {
@@ -36,14 +42,16 @@ export const DEFAULT_TRACK_STYLE: TrackStyle = {
   outlineOpacity: TRACK_STYLE_DEFAULTS.outlineOpacity
 };
 
-export type TrackColorBy = 'none' | 'elevation' | 'grade' | 'speed' | 'pace';
+export const TRACK_COLOR_BY_MODES = ['none', 'elevation', 'grade', 'speed', 'pace'] as const;
+
+export type TrackColorBy = typeof TRACK_COLOR_BY_MODES[number];
 
 export interface TrackRenderOptions {
   coloringType?: TrackColorBy;
   elevations?: Meters[];
-  // Per-point epoch ms, required for speed and pace colouring.
+  // Per-point epoch ms, required for speed and pace coloring.
   times?: number[];
-  // Span speed is averaged over when colouring by speed or pace.
+  // Span speed is averaged over when coloring by speed or pace.
   speedWindow?: MetricWindow;
   style?: Partial<TrackStyle>;
   gradeWindow?: MetricWindow;
@@ -52,14 +60,15 @@ export interface TrackRenderOptions {
 
 export class TrackRenderer {
   static createTrackRenderData(routeData: string, options: TrackRenderOptions = {}): TrackRenderResult {
+    return finishWork(this.createTrackRenderDataWork(routeData, options));
+  }
+
+  static *createTrackRenderDataWork(routeData: string | Coordinate[], options: TrackRenderOptions = {}): Generator<void, TrackRenderResult> {
     const { coloringType, elevations, times, style = {}, gradeWindow = DEFAULT_GRADE_WINDOW, speedWindow = DEFAULT_SPEED_WINDOW, outlineOverride } = options;
 
-    const finalStyle: TrackStyle = { ...DEFAULT_TRACK_STYLE, ...style };
-    const trackCoords = PolylineCodec.decode(routeData);
+    const finalStyle = mergeWithDefaults(style);
+    const trackCoords = typeof routeData === 'string' ? PolylineCodec.decode(routeData) : yield* PolylineCodec.quantizeWork(routeData);
 
-    // Elevation and grade need per-point elevations; speed and pace need
-    // per-point times. A track missing what its mode requires renders flat
-    // rather than silently switching to another colouring.
     const isSpeedMode = coloringType === 'speed' || coloringType === 'pace';
     const canColor = isSpeedMode
       ? Boolean(times && times.length === trackCoords.length)
@@ -68,6 +77,7 @@ export class TrackRenderer {
 
     if (!canColor) {
       const needsOutline = outlineOverride !== undefined ? outlineOverride : false;
+
       return {
         type: 'single',
         segments: [],
@@ -78,18 +88,17 @@ export class TrackRenderer {
     }
 
     let segments: GradeColoredSegment[];
+
     if (coloringType === 'elevation') {
-      segments = SegmentCreator.createElevationColoredSegments(routeData, elevations as Meters[], gradeWindow);
+      segments = yield* SegmentCreator.createElevationColoredSegmentsWork(trackCoords, elevations as Meters[], gradeWindow);
     } else if (coloringType === 'grade') {
-      segments = SegmentCreator.createGradeColoredSegments(routeData, elevations as Meters[], gradeWindow);
+      segments = yield* SegmentCreator.createGradeColoredSegmentsWork(trackCoords, elevations as Meters[], gradeWindow);
     } else if (isSpeedMode) {
-      segments = SegmentCreator.createSpeedColoredSegments(routeData, times as number[], speedWindow, coloringType);
+      segments = yield* SegmentCreator.createSpeedColoredSegmentsWork(trackCoords, times as number[], speedWindow, coloringType);
     } else {
       throw new Error('Invalid coloring type');
     }
 
-    // Timestamps can be present but unusable (all identical, or a stationary
-    // track); an empty segment list falls back to a plain line.
     if (segments.length === 0) {
       return {
         type: 'single',
@@ -101,6 +110,7 @@ export class TrackRenderer {
     }
 
     const needsOutline = outlineOverride !== undefined ? outlineOverride : true;
+
     return {
       type: 'colored',
       segments,

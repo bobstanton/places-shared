@@ -30,11 +30,13 @@ export interface ProviderThrownErrorOptions {
 export async function describeProviderThrownError(options: ProviderThrownErrorOptions): Promise<string> {
   const response = getErrorResponse(options.error);
   const requestContext = options.requestSummary ? ` (${options.requestSummary})` : "";
+
   if (!response) {
     return `${options.provider} ${options.operation} failed${requestContext}: ${getErrorMessage(options.error)}`;
   }
 
   const { json, text } = await readResponseBody(response);
+
   return formatProviderApiError({
     provider: options.provider,
     operation: options.operation,
@@ -53,14 +55,18 @@ interface ReadableErrorResponse {
 function getErrorResponse(error: unknown): ReadableErrorResponse | null {
   if (!error || typeof error !== "object" || !("response" in error)) return null;
   const response = (error as { response?: unknown }).response;
+
   if (!response || typeof response !== "object") return null;
   const candidate = response as Partial<ReadableErrorResponse>;
+
   return typeof candidate.status === "number" && typeof candidate.text === "function" ? candidate as ReadableErrorResponse : null;
 }
 
 async function readResponseBody(response: ReadableErrorResponse): Promise<{ json?: unknown; text: string }> {
   const text = await response.text().catch(() => "");
+
   if (!text.trim()) return { text };
+
   return { json: tryParseProviderErrorJson(text), text };
 }
 
@@ -82,12 +88,14 @@ export function formatProviderResponseShapeError(options: ProviderResponseShapeE
   const requestContext = options.requestSummary ? ` (${options.requestSummary})` : "";
   const details = extractShapeErrorDetails(options.json);
   const head = `${options.provider} returned an unusable ${options.operation} response${requestContext}`;
+
   if (details) return `${head}: ${details}`;
 
   const counts = options.expectedCount !== undefined
     ? `expected ${options.expected} for ${options.expectedCount} points, received ${options.receivedCount ?? 0}`
     : `no ${options.expected} in the response`;
   const fields = describeResponseFields(options.json);
+
   return `${head}: ${counts}.${fields}`;
 }
 
@@ -100,13 +108,16 @@ function extractShapeErrorDetails(json: unknown): string {
   const { code, ...rest } = json as Record<string, unknown>;
   const codeText = typeof code === "string" && code.toLowerCase() !== "ok" ? code : "";
   const message = extractApiErrorDetails(rest);
+
   if (codeText && message) return `${codeText}: ${message}`;
+
   return codeText || message;
 }
 
 function describeResponseFields(json: unknown): string {
   if (!json || typeof json !== "object" || Array.isArray(json)) return "";
   const keys = Object.keys(json);
+
   return keys.length > 0 ? ` Response fields: ${keys.join(", ")}.` : "";
 }
 
@@ -114,6 +125,7 @@ export function extractApiErrorDetails(json: unknown, text?: string): string {
   if (json && typeof json === "object") {
     const body = json as Record<string, unknown>;
     const message = body.message ?? body.error ?? body.errorMessage ?? body.details ?? body.detail ?? body.code;
+
     if (message !== undefined) return stringifyApiError(message);
   }
 

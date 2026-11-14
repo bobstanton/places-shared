@@ -35,6 +35,7 @@ export function getMapContainerState(container: HTMLElement): MapContainerState 
 
 export function setMapContainerState(container: HTMLElement, state: Partial<MapContainerState>): void {
   const el = container as MapStateContainer;
+
   el._placesMapState = {
     ...(el._placesMapState || {}),
     ...state,
@@ -59,6 +60,7 @@ export function setMapProviderState<T>(container: HTMLElement, providerId: strin
 
 export function clearMapProviderState(container: HTMLElement, providerId: string): void {
   const state = getMapContainerState(container);
+
   if (!state?.providerStates) return;
   delete state.providerStates[providerId];
 }
@@ -69,9 +71,12 @@ export function getAllMapProviderStates(container: HTMLElement): unknown[] {
 
 export function cleanupMapProviderStates(container: HTMLElement, onError?: (error: unknown) => void): void {
   const states = getAllMapProviderStates(container);
+
   for (const state of states) {
     const lifecycle = (state as MapProviderStateWithLifecycle | undefined)?.lifecycle;
+
     if (!lifecycle) continue;
+
     try {
       lifecycle.cleanup();
     } catch (error) {
@@ -80,6 +85,7 @@ export function cleanupMapProviderStates(container: HTMLElement, onError?: (erro
   }
 
   const containerState = getMapContainerState(container);
+
   if (containerState?.providerStates) {
     containerState.providerStates = {};
   }
@@ -88,6 +94,7 @@ export function cleanupMapProviderStates(container: HTMLElement, onError?: (erro
 export function hasActiveMapProviderState(container: HTMLElement): boolean {
   return getAllMapProviderStates(container).some(state => {
     const lifecycle = (state as MapProviderStateWithLifecycle | undefined)?.lifecycle;
+
     return lifecycle?.hasActiveInstance() ?? false;
   });
 }

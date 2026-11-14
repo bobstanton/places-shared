@@ -1,5 +1,5 @@
-import type { Place } from "../Place";
-import { PlacesBoundingBox } from "../geo/PlacesBoundingBox";
+import type { Place } from "../place/index";
+import { PlacesBoundingBox } from "../geo/index";
 
 export interface PeliasFeature {
   geometry?: { coordinates?: number[] };
@@ -26,12 +26,14 @@ export interface PeliasPlaceOptions {
 export function peliasFeatureBounds(feature: PeliasFeature, fallbackRadiusKm = 2): PlacesBoundingBox | null {
   if (Array.isArray(feature.bbox) && feature.bbox.length >= 4) {
     const [minLng, minLat, maxLng, maxLat] = feature.bbox;
+
     if ([minLng, minLat, maxLng, maxLat].every(Number.isFinite)) {
       return new PlacesBoundingBox(minLat, minLng, maxLat, maxLng);
     }
   }
 
   const coordinates = peliasFeatureCoordinates(feature);
+
   return coordinates
     ? PlacesBoundingBox.fromCoordinates([coordinates], fallbackRadiusKm)
     : null;
@@ -40,6 +42,7 @@ export function peliasFeatureBounds(feature: PeliasFeature, fallbackRadiusKm = 2
 export function peliasFeatureToPlace(feature: PeliasFeature, options: PeliasPlaceOptions): Place | null {
   const coordinates = peliasFeatureCoordinates(feature);
   const properties = feature.properties;
+
   if (!coordinates || !properties) return null;
 
   return {
@@ -60,8 +63,10 @@ export function peliasFeatureToPlace(feature: PeliasFeature, options: PeliasPlac
 
 function peliasFeatureCoordinates(feature: PeliasFeature): { longitude: number; latitude: number } | null {
   const coordinates = feature.geometry?.coordinates;
+
   if (!coordinates || coordinates.length < 2) return null;
   const [longitude, latitude] = coordinates;
+
   return Number.isFinite(longitude) && Number.isFinite(latitude) ? { longitude, latitude } : null;
 }
 
@@ -75,5 +80,6 @@ function formatPeliasAddress(properties: NonNullable<PeliasFeature["properties"]
       properties.country,
     ].filter(Boolean).join(", ");
   }
+
   return properties.label ?? "";
 }

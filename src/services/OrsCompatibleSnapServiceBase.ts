@@ -39,6 +39,7 @@ export abstract class OrsCompatibleSnapServiceBase implements ISnapService {
     ) as { locations?: Array<OrsCompatibleSnapLocation | null> };
 
     const locations = result.locations;
+
     if (!Array.isArray(locations) || locations.length !== request.points.length) {
       throw new Error(formatProviderResponseShapeError({
         provider: this.getProviderDisplayName(),

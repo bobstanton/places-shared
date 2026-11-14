@@ -5,7 +5,6 @@ import { DEFAULT_GRADE_WINDOW, DEFAULT_SPEED_WINDOW, parseMetricWindow, type Met
 
 export { DEFAULT_GRADE_DISTANCE_FEET, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH } from './MapDefaults';
 
-
 export const DEFAULT_ROUTE_LABEL_TEMPLATE = '{this.distance_text} · {this.duration_text}';
 
 // Resolved against the track note's frontmatter.
@@ -26,14 +25,10 @@ export const DEFAULT_GPX_WAYPOINT_LABEL_TEMPLATE = '{this.name}';
 // Resolve a label template through the override cascade: note frontmatter > code block > global > coded.
 // A value present at the note or block level wins even when empty (empty = hide the label). An empty
 // global setting means "no override", and the coded default applies.
-export function resolveCascadedLabelTemplate(
-  noteValue: string | undefined,
-  blockValue: string | undefined,
-  globalDefault: string,
-  codedDefault: string,
-): string {
+export function resolveCascadedLabelTemplate(noteValue: string | undefined, blockValue: string | undefined, globalDefault: string, codedDefault: string): string {
   if (noteValue !== undefined) return noteValue;
   if (blockValue !== undefined) return blockValue;
+
   return globalDefault.trim() !== '' ? globalDefault : codedDefault;
 }
 
@@ -41,7 +36,6 @@ export interface BaseBlockSettings {
   height: string;
   width: string;
 }
-
 
 export interface NormalizedChartBlockSettings {
   height: string;
@@ -100,8 +94,8 @@ export const DEFAULT_NORMALIZED_CHART_SETTINGS: NormalizedChartBlockSettings = {
   legend: 'hidden'
 };
 
-export function normalizeChartBlockSettings(raw: Record<string, unknown>): NormalizedChartBlockSettings {
-  const d = DEFAULT_NORMALIZED_CHART_SETTINGS;
+export function normalizeChartBlockSettings(raw: Record<string, unknown>, windows?: Pick<NormalizedChartBlockSettings, 'gradeWindow' | 'speedWindow'>): NormalizedChartBlockSettings {
+  const d = { ...DEFAULT_NORMALIZED_CHART_SETTINGS, ...windows };
   const text = (key: string): string | undefined => codeBlockText(raw, key);
 
   return {
@@ -120,7 +114,6 @@ export function normalizeChartBlockSettings(raw: Record<string, unknown>): Norma
     paceColor: text('paceColor') || d.paceColor,
     gradeColor: text('gradeColor') || d.gradeColor,
     fontSize: parseNumber(raw.fontSize, d.fontSize),
-    // `gradeDistance:` is the older spelling, an unlabelled feet number.
     gradeWindow: raw.gradeWindow !== undefined || raw.gradeDistance === undefined
       ? parseMetricWindow(raw.gradeWindow, d.gradeWindow)
       : { kind: 'distance', km: parseNumber(raw.gradeDistance, DEFAULT_GRADE_DISTANCE_FEET) * 0.0003048 },
@@ -136,5 +129,6 @@ export function normalizeChartBlockSettings(raw: Record<string, unknown>): Norma
 
 function codeBlockMapping(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
   return value as Record<string, string>;
 }

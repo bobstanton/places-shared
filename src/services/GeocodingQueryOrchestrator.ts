@@ -23,13 +23,16 @@ export interface GeocodingQueryOrchestratorOptions {
 
 function getBoundsProximity(bounds: PlacesBoundingBox): GeocodingProximity {
   const [longitude, latitude] = bounds.getLngLatCenter();
+
   return { latitude, longitude };
 }
 
 export async function lookupPlaceWithNearOrInQuery(query: string, options: GeocodingQueryOrchestratorOptions): Promise<Place[]> {
   const trimmedQuery = query.trim();
+
   if (!trimmedQuery) return [];
   const parsedQuery = parseNearQuery(trimmedQuery);
+
   if (!parsedQuery) {
     return options.search(trimmedQuery);
   }
